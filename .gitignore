@@ -1,0 +1,50 @@
+==============================
+
+1. Datasets & Large Files
+
+==============================
+
+*.csv
+*.npz
+.npy
+PAFPDB/
+models/paf_hrv_dataset
+
+==============================
+
+2. Python & FastAPI Backend
+
+==============================
+
+pycache/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+ENV/
+.ipynb_checkpoints/
+
+==============================
+
+3. React & Node.js Frontend
+
+==============================
+
+node_modules/
+dist/
+build/
+.eslintcache
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+==============================
+
+4. OS System Files
+
+==============================
+
+.DS_Store
+Thumbs.db
