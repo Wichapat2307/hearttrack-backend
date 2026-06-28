@@ -1,31 +1,31 @@
 import { useState } from 'react';
-import { Activity, HeartPulse, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Activity, HeartPulse, AlertCircle, CheckCircle2, UploadCloud } from 'lucide-react';
 
 export default function App() {
   const [rrData, setRrData] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [result, setResult] = useState(null);
+  const [fileName, setFileName] = useState("");
 
-  // --- 1. DATA SIMULATION ---
-  const simulateHealthyData = () => {
-    // Generates normal resting heart rate intervals (~800ms)
-    const normalData = Array.from({ length: 30 }, () => 
-      Math.floor(Math.random() * (850 - 750 + 1)) + 750
-    );
-    setRrData(normalData);
-    setResult(null);
-    setError(null);
-  };
+  // --- 1. DATA UPLOAD ENGINE ---
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    setFileName(file.name);
 
-  const simulatePafData = () => {
-    // Generates irregular intervals typical of PAF (high variance)
-    const irregularData = Array.from({ length: 30 }, () => 
-      Math.floor(Math.random() * (1100 - 400 + 1)) + 400
-    );
-    setRrData(irregularData);
-    setResult(null);
-    setError(null);
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target.result;
+      // Parses the CSV: splits by commas or newlines, converts to numbers, ignores empty data
+      const dataArray = text.split(/[\n,]+/).map(Number).filter(n => !isNaN(n) && n !== 0);
+      
+      setRrData(dataArray);
+      setResult(null);
+      setError(null);
+    };
+    reader.readAsText(file);
   };
 
   // --- 2. API COMMUNICATION ENGINE ---
@@ -44,7 +44,8 @@ export default function App() {
       });
       
       if (!response.ok) {
-        throw new Error("Diagnostic server is offline or returned an error.");
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || "Diagnostic server is offline or returned an error.");
       }
 
       const data = await response.json();
@@ -64,25 +65,23 @@ export default function App() {
         <h1 style={{ margin: 0, color: '#1f2937' }}>HeartTrack AI Clinical Dashboard</h1>
       </header>
 
-      <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
-        <button 
-          onClick={simulateHealthyData}
-          style={{ padding: '0.75rem 1.5rem', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-        >
-          Simulate Healthy Heart
-        </button>
-        <button 
-          onClick={simulatePafData}
-          style={{ padding: '0.75rem 1.5rem', backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}
-        >
-          Simulate PAF Heart
-        </button>
+      {/* Upload Section */}
+      <div style={{ marginBottom: '2rem' }}>
+        <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2.5rem', backgroundColor: '#f8fafc', border: '2px dashed #cbd5e1', borderRadius: '8px', cursor: 'pointer', transition: 'all 0.2s' }}>
+          <UploadCloud size={48} color="#64748b" style={{ marginBottom: '1rem' }} />
+          <span style={{ fontSize: '1.1rem', fontWeight: '500', color: '#334155' }}>
+            {fileName ? `Loaded: ${fileName}` : 'Click to Upload .csv Dataset'}
+          </span>
+          <input type="file" accept=".csv" onChange={handleFileUpload} style={{ display: 'none' }} />
+        </label>
       </div>
 
       <div style={{ backgroundColor: '#f9fafb', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
         <h3 style={{ margin: '0 0 1rem 0', color: '#4b5563' }}>Current Patient Data (R-R Intervals)</h3>
-        <p style={{ fontFamily: 'monospace', wordBreak: 'break-all', color: '#6b7280' }}>
-          {rrData.length > 0 ? rrData.join(', ') + ' ...' : 'No data loaded. Click a simulation button above.'}
+        <p style={{ fontFamily: 'monospace', wordBreak: 'break-all', color: '#6b7280', maxHeight: '100px', overflowY: 'auto' }}>
+          {rrData.length > 0 
+            ? `${rrData.slice(0, 50).join(', ')} ${rrData.length > 50 ? '...' : ''} (${rrData.length} total intervals loaded)` 
+            : 'No data loaded. Upload a file above.'}
         </p>
       </div>
 
@@ -102,15 +101,27 @@ export default function App() {
         </div>
       )}
 
+      {/* Dynamic Results Display */}
       {result && (
-        <div style={{ marginTop: '2rem', padding: '2rem', backgroundColor: result.risk_level === 'High' ? '#fee2e2' : '#d1fae5', border: `2px solid ${result.risk_level === 'High' ? '#f87171' : '#34d399'}`, borderRadius: '12px', textAlign: 'center' }}>
-          {result.risk_level === 'High' ? <AlertCircle size={48} color="#ef4444" style={{ margin: '0 auto' }}/> : <CheckCircle2 size={48} color="#10b981" style={{ margin: '0 auto' }}/>}
+        <div style={{ marginTop: '2rem', padding: '2rem', backgroundColor: result.is_afib_imminent ? '#fee2e2' : '#d1fae5', border: `2px solid ${result.is_afib_imminent ? '#f87171' : '#34d399'}`, borderRadius: '12px', textAlign: 'center' }}>
+          {result.is_afib_imminent ? <AlertCircle size={48} color="#ef4444" style={{ margin: '0 auto' }}/> : <CheckCircle2 size={48} color="#10b981" style={{ margin: '0 auto' }}/>}
+          
           <h2 style={{ fontSize: '2rem', margin: '1rem 0 0.5rem 0', color: '#1f2937' }}>
-            Risk Level: {result.risk_level}
+            {result.is_afib_imminent ? 'High Risk (PAF Detected)' : 'Normal (Healthy)'}
           </h2>
+          
           <p style={{ fontSize: '1.25rem', color: '#4b5563', margin: 0 }}>
-            AI Confidence: <strong>{(result.confidence * 100).toFixed(1)}%</strong>
+            AI Probability: <strong>{(result.risk_probability * 100).toFixed(1)}%</strong>
           </p>
+
+          {/* Show the clinical math features your backend calculated! */}
+          <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: `1px solid ${result.is_afib_imminent ? '#fca5a5' : '#6ee7b7'}`}}>
+              <p style={{ margin: 0, fontSize: '0.9rem', color: '#4b5563' }}>
+                <strong>Key Biometrics Analyzed:</strong><br/>
+                Heart Rate Variability (SDNN): {result.biometrics.sdnn.toFixed(2)} ms<br/>
+                Premature Atrial Contractions (PACs): {result.biometrics.pac_count}
+              </p>
+          </div>
         </div>
       )}
     </div>
