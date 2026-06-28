@@ -13,7 +13,7 @@ import os
 # 1. Initialize the Web API
 app = FastAPI(title="AFib Diagnostic API", version="1.0")
 
-# Allow the future React frontend to talk to this backend
+# Allow the React frontend to talk to this backend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"], 
@@ -35,7 +35,7 @@ except Exception as e:
 class PatientData(BaseModel):
     rr_intervals: list[float]
 
-# 4. The Clinical Math Engine (From your Extract_HRV script)
+# 4. The Clinical Math Engine
 def extract_features(rr_intervals):
     if len(rr_intervals) < 10:  
         return None
