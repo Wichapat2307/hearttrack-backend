@@ -27,27 +27,32 @@ st.set_page_config(
 )
 
 # ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
-# Palette: white base, light blue accent (UI), light green accent (safe/positive)
-BG       = "#ffffff"
-BG2      = "#f4f9fd"
-BG3      = "#eaf3fb"
-BORDER   = "#d6e6f2"
-TEXT     = "#1b2733"
-TEXT2    = "#5b7488"
-TEXT3    = "#94a8b8"
-CRIMSON  = "#ef4444"   # reserved for high-risk/danger indication
-CRIMSON2 = "#dc2626"
-AMBER    = "#f59e0b"
-EMERALD  = "#34c38f"   # light green
-SAPPHIRE = "#5eb3f0"   # light blue — primary UI accent
+# Palette: clinical white/light-blue base with light-green positive accent
+BG       = "#f3f8fc"   # page background — soft clinical blue-white
+BG2      = "#ffffff"   # sidebar / panel background
+BG3      = "#ffffff"   # card background
+TINT     = "#eaf4fb"   # subtle tinted fill (headers, hover states)
+BORDER   = "#dde9f2"
+TEXT     = "#1a2b3a"
+TEXT2    = "#5c7689"
+TEXT3    = "#9bb0bf"
+CRIMSON  = "#e35d6a"   # reserved for high-risk/danger indication
+CRIMSON2 = "#cf4756"
+AMBER    = "#dc9a3a"
+EMERALD  = "#2fa37c"   # light green — safe/positive
+SAPPHIRE = "#3d8bc4"   # light blue — primary clinical accent
+SAPPHIRE_DK = "#2f6f9e"
 
 # ─── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
   html, body, .stApp {{ background: {BG}; color: {TEXT}; font-family: 'Inter', sans-serif; }}
-  section[data-testid="stSidebar"] {{ background: {BG2}; border-right: 1px solid {BORDER}; }}
+  section[data-testid="stSidebar"] {{
+    background: {BG2}; border-right: 1px solid {BORDER};
+    box-shadow: 2px 0 8px rgba(61,139,196,0.04);
+  }}
   section[data-testid="stSidebar"] * {{ color: {TEXT} !important; }}
   .stApp header {{ background: {BG} !important; }}
   .block-container {{ padding: 1.5rem 2rem 3rem !important; max-width: 1400px; }}
@@ -55,19 +60,29 @@ st.markdown(f"""
   /* Remove streamlit branding */
   #MainMenu, footer, header {{ visibility: hidden; }}
 
-  /* Metric cards — fully custom */
+  /* Focus states for accessibility */
+  button:focus-visible, input:focus-visible, [role="radio"]:focus-visible {{
+    outline: 2px solid {SAPPHIRE} !important; outline-offset: 2px !important;
+  }}
+
+  /* Metric cards — fully custom, clinical "vital sign" tiles */
   div[data-testid="metric-container"] {{
     background: {BG3};
     border: 1px solid {BORDER};
+    border-left: 3px solid {SAPPHIRE};
     border-radius: 10px;
-    padding: 16px 18px !important;
-    transition: border-color 0.2s;
+    padding: 14px 18px !important;
+    box-shadow: 0 1px 2px rgba(28,55,80,0.05);
+    transition: box-shadow 0.2s, border-color 0.2s;
   }}
-  div[data-testid="metric-container"]:hover {{ border-color: #b9d6ec; }}
+  div[data-testid="metric-container"]:hover {{
+    border-color: #b9d6ec;
+    box-shadow: 0 4px 14px rgba(61,139,196,0.12);
+  }}
   div[data-testid="metric-container"] label {{
     color: {TEXT3} !important;
     font-size: 10px !important;
-    font-weight: 600 !important;
+    font-weight: 700 !important;
     letter-spacing: 0.08em !important;
     text-transform: uppercase !important;
   }}
@@ -83,7 +98,10 @@ st.markdown(f"""
 
   /* Slider */
   .stSlider [data-baseweb="slider"] {{ padding: 0 !important; }}
-  .stSlider [data-baseweb="thumb"] {{ background: {SAPPHIRE} !important; border: 2px solid white !important; }}
+  .stSlider [data-baseweb="thumb"] {{
+    background: {SAPPHIRE} !important; border: 3px solid white !important;
+    box-shadow: 0 1px 4px rgba(61,139,196,0.45) !important;
+  }}
   .stSlider [data-baseweb="track-fill"] {{ background: {SAPPHIRE} !important; }}
 
   /* Buttons */
@@ -91,8 +109,12 @@ st.markdown(f"""
     background: {SAPPHIRE}; color: white; border: none;
     border-radius: 8px; font-weight: 600; font-size: 13px;
     padding: 8px 20px; transition: all 0.2s;
+    box-shadow: 0 1px 3px rgba(61,139,196,0.35);
   }}
-  .stButton > button:hover {{ background: #3b9ae1; transform: translateY(-1px); }}
+  .stButton > button:hover {{
+    background: {SAPPHIRE_DK}; transform: translateY(-1px);
+    box-shadow: 0 4px 10px rgba(61,139,196,0.4);
+  }}
 
   /* Select box */
   .stSelectbox [data-baseweb="select"] > div {{
@@ -106,6 +128,7 @@ st.markdown(f"""
 
   /* Toggle */
   .stToggle label {{ color: {TEXT} !important; font-size: 13px !important; }}
+  .stToggle [data-baseweb="checkbox"] div[aria-checked="true"] {{ background: {EMERALD} !important; }}
 
   /* Alerts */
   div[data-testid="stAlert"] {{ border-radius: 10px !important; }}
@@ -115,7 +138,7 @@ st.markdown(f"""
 
   /* Tabs */
   .stTabs [data-baseweb="tab-list"] {{
-    background: {BG3}; border-radius: 10px; padding: 4px; gap: 4px; border: 1px solid {BORDER};
+    background: {TINT}; border-radius: 10px; padding: 4px; gap: 4px; border: 1px solid {BORDER};
   }}
   .stTabs [data-baseweb="tab"] {{
     background: transparent; color: {TEXT2}; border-radius: 7px;
@@ -123,6 +146,7 @@ st.markdown(f"""
   }}
   .stTabs [aria-selected="true"] {{
     background: {SAPPHIRE} !important; color: white !important;
+    box-shadow: 0 1px 4px rgba(61,139,196,0.35);
   }}
 
   /* Scrollbar */
@@ -134,26 +158,43 @@ st.markdown(f"""
   .ht-card {{
     background: {BG3}; border: 1px solid {BORDER};
     border-radius: 12px; padding: 20px;
+    box-shadow: 0 1px 3px rgba(28,55,80,0.05);
   }}
   .ht-badge {{
-    display: inline-block; font-size: 10px; font-weight: 700;
-    padding: 3px 10px; border-radius: 4px; letter-spacing: 0.06em;
+    display: inline-flex; align-items: center; gap: 5px;
+    font-size: 10px; font-weight: 700;
+    padding: 4px 11px; border-radius: 20px; letter-spacing: 0.06em;
     text-transform: uppercase;
   }}
-  .ht-badge-normal   {{ background: #e3f9ef; color: #1ea672; }}
-  .ht-badge-distant  {{ background: #fef3e2; color: #b45309; }}
-  .ht-badge-imminent {{ background: #fde8e8; color: #c53030; }}
+  .ht-badge::before {{
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor; display: inline-block;
+  }}
+  .ht-badge-normal   {{ background: #e5f7ef; color: #1f8f64; }}
+  .ht-badge-distant  {{ background: #fbf0de; color: #b07a25; }}
+  .ht-badge-imminent {{ background: #fbe6e6; color: #c14550; }}
 
   /* Risk banner */
   .risk-banner {{
-    border-radius: 10px; padding: 14px 18px;
+    border-radius: 10px; padding: 14px 20px;
     display: flex; align-items: center; gap: 12px;
     font-weight: 600; font-size: 14px;
+    box-shadow: 0 1px 3px rgba(28,55,80,0.04);
   }}
-  .risk-high    {{ background: #fde8e8; border: 1px solid #f5b8b8; color: #c53030; }}
-  .risk-medium  {{ background: #fef3e2; border: 1px solid #f6d8a8; color: #b45309; }}
-  .risk-low     {{ background: #e3f9ef; border: 1px solid #b6ecd3; color: #1ea672; }}
-  .risk-unknown {{ background: {BG3};   border: 1px solid {BORDER}; color: {TEXT2}; }}
+  .risk-high    {{ background: #fbe6e6; border: 1px solid #f3c1c4; color: #c14550; }}
+  .risk-medium  {{ background: #fbf0de; border: 1px solid #f0d4a0; color: #b07a25; }}
+  .risk-low     {{ background: #e5f7ef; border: 1px solid #b9e8d0; color: #1f8f64; }}
+  .risk-unknown {{ background: {TINT};  border: 1px solid {BORDER}; color: {TEXT2}; }}
+
+  /* Section eyebrow label used before headers */
+  .ht-eyebrow {{
+    font-size: 10.5px; font-weight: 700; color: {SAPPHIRE_DK};
+    letter-spacing: 0.1em; text-transform: uppercase;
+    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  }}
+  .ht-eyebrow::before {{
+    content: ''; width: 14px; height: 2px; background: {SAPPHIRE}; display: inline-block; border-radius: 1px;
+  }}
 </style>
 """, unsafe_allow_html=True)
 
@@ -474,10 +515,16 @@ def main():
     # ── Sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
         st.markdown(f"""
-        <div style='padding:4px 0 16px'>
-          <div style='font-size:20px;font-weight:800;letter-spacing:-0.02em;color:{TEXT}'>🫀 HeartTrack AI</div>
-          <div style='font-size:11px;color:{TEXT3};margin-top:3px;letter-spacing:0.04em'>
-            PAF DETECTION  ·  CLINICAL DASHBOARD
+        <div style='padding:6px 0 16px'>
+          <div style='font-size:21px;font-weight:700;letter-spacing:-0.01em;color:{TEXT};
+               font-family:"Source Serif 4",serif;display:flex;align-items:center;gap:8px'>
+            <span style='display:inline-flex;align-items:center;justify-content:center;
+                  width:30px;height:30px;border-radius:8px;background:{TINT};font-size:16px'>🫀</span>
+            HeartTrack AI
+          </div>
+          <div style='font-size:10.5px;color:{TEXT3};margin-top:6px;letter-spacing:0.07em;
+               padding-left:38px'>
+            PAF DETECTION · CLINICAL DASHBOARD
           </div>
         </div>
         """, unsafe_allow_html=True)
@@ -525,14 +572,16 @@ def main():
 
     # ── Header ────────────────────────────────────────────────────────────────
     st.markdown(f"""
-    <div style='display:flex;align-items:baseline;gap:14px;margin-bottom:2px'>
-      <span style='font-size:26px;font-weight:800;letter-spacing:-0.03em;color:{TEXT}'>HeartTrack AI</span>
-      <span style='font-size:10px;font-weight:700;color:{TEXT3};padding:3px 10px;
-             border:1px solid {BORDER};border-radius:4px;letter-spacing:0.08em'>
-        CLINICAL DASHBOARD
+    <div class='ht-eyebrow'>CLINICAL DASHBOARD</div>
+    <div style='display:flex;align-items:baseline;gap:14px;margin-bottom:6px'>
+      <span style='font-size:30px;font-weight:700;letter-spacing:-0.02em;color:{TEXT};
+             font-family:"Source Serif 4",serif'>HeartTrack AI</span>
+      <span style='font-size:10px;font-weight:700;color:{SAPPHIRE_DK};padding:4px 11px;
+             background:{TINT};border:1px solid {BORDER};border-radius:20px;letter-spacing:0.08em'>
+        ● LIVE ANALYSIS
       </span>
     </div>
-    <p style='color:{TEXT3};margin:0 0 20px;font-size:12px;letter-spacing:0.02em'>
+    <p style='color:{TEXT2};margin:0 0 22px;font-size:13px;letter-spacing:0.01em'>
       Paroxysmal Atrial Fibrillation &nbsp;·&nbsp; Real ECG from PAFPDB
       &nbsp;·&nbsp; CatBoost + SHAP Explainability
     </p>
@@ -632,9 +681,7 @@ def main():
 
         with col_right:
             if feat:
-                st.markdown(f"<div style='font-size:11px;font-weight:700;color:{TEXT3};"
-                            f"letter-spacing:0.08em;text-transform:uppercase;"
-                            f"margin-bottom:10px'>HRV Metrics</div>",
+                st.markdown(f"<div class='ht-eyebrow' style='margin-bottom:12px'>HRV Metrics</div>",
                             unsafe_allow_html=True)
                 m1,m2,m3,m4 = st.columns(4)
                 m1.metric("SDNN",    f"{safe_float(feat['sdnn'],1)} ms")
@@ -754,9 +801,8 @@ def main():
             </div>""", unsafe_allow_html=True)
 
         with col_r:
-            st.markdown(f"<div style='font-size:11px;font-weight:700;color:{TEXT3};"
-                        f"letter-spacing:0.08em;text-transform:uppercase;margin-bottom:10px'>"
-                        f"HRV Metrics</div>", unsafe_allow_html=True)
+            st.markdown(f"<div class='ht-eyebrow' style='margin-bottom:12px'>HRV Metrics</div>",
+                        unsafe_allow_html=True)
             m1,m2,m3,m4 = st.columns(4)
             m1.metric("SDNN",    f"{safe_float(feat['sdnn'],1)} ms")
             m2.metric("RMSSD",   f"{safe_float(feat['rmssd'],1)} ms")
