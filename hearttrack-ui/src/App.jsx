@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
 
-const API_URL = "https://hearttrack-backend.onrender.com";
+const API_URL = "https://hearttrack-backend-production.up.railway.app";
 const WS_URL  = API_URL.replace(/^http/, "ws") + "/ws/ecg";
 
 const RISK_CONFIG = {
