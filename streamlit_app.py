@@ -36,12 +36,12 @@ BORDER   = "#dde9f2"
 TEXT     = "#1a2b3a"
 TEXT2    = "#5c7689"
 TEXT3    = "#9bb0bf"
-CRIMSON  = "#e35d6a"   # reserved for high-risk/danger indication
-CRIMSON2 = "#cf4756"
-AMBER    = "#dc9a3a"
-EMERALD  = "#2fa37c"   # light green — safe/positive
-SAPPHIRE = "#3d8bc4"   # light blue — primary clinical accent
-SAPPHIRE_DK = "#2f6f9e"
+CRIMSON  = "#c9707a"   # reserved for high-risk/danger indication
+CRIMSON2 = "#b85e69"
+AMBER    = "#c79552"
+EMERALD  = "#4f9379"   # light green — safe/positive
+SAPPHIRE = "#4a90c2"   # light blue — primary clinical accent
+SAPPHIRE_DK = "#3a749e"
 
 # ─── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown(f"""
@@ -192,9 +192,9 @@ st.markdown(f"""
     content: ''; width: 6px; height: 6px; border-radius: 50%;
     background: currentColor; display: inline-block;
   }}
-  .ht-badge-normal   {{ background: #e5f7ef; color: #1f8f64; }}
-  .ht-badge-distant  {{ background: #fbf0de; color: #b07a25; }}
-  .ht-badge-imminent {{ background: #fbe6e6; color: #c14550; }}
+  .ht-badge-normal   {{ background: #ecf8f1; color: #4f9379; }}
+  .ht-badge-distant  {{ background: #fbf3e6; color: #ab8147; }}
+  .ht-badge-imminent {{ background: #fbeef0; color: #b66b73; }}
 
   /* Risk banner */
   .risk-banner {{
@@ -203,9 +203,9 @@ st.markdown(f"""
     font-weight: 600; font-size: 14px;
     box-shadow: 0 1px 3px rgba(28,55,80,0.04);
   }}
-  .risk-high    {{ background: #fbe6e6; border: 1px solid #f3c1c4; color: #c14550; }}
-  .risk-medium  {{ background: #fbf0de; border: 1px solid #f0d4a0; color: #b07a25; }}
-  .risk-low     {{ background: #e5f7ef; border: 1px solid #b9e8d0; color: #1f8f64; }}
+  .risk-high    {{ background: #fbeef0; border: 1px solid #f1d4d8; color: #b66b73; }}
+  .risk-medium  {{ background: #fbf3e6; border: 1px solid #f0e0bf; color: #ab8147; }}
+  .risk-low     {{ background: #ecf8f1; border: 1px solid #c9e8d7; color: #4f9379; }}
   .risk-unknown {{ background: {TINT};  border: 1px solid {BORDER}; color: {TEXT2}; }}
 
   /* Section eyebrow label used before headers */
@@ -366,13 +366,13 @@ def plot_ecg(signal, fs, peaks, windows, win_idx, label_key):
     if w["features"] and mdl:
         risk = float(mdl.predict_proba(pd.DataFrame([w["features"]]))[0][1])
 
-    hl = ("rgba(239,68,68,0.10)"  if risk is not None and risk >= 0.3  else
-          "rgba(245,158,11,0.10)" if risk is not None and risk >= 0.15 else
-          "rgba(52,195,143,0.10)" if risk is not None else
+    hl = ("rgba(201,138,146,0.10)" if risk is not None and risk >= 0.3  else
+          "rgba(201,170,120,0.10)" if risk is not None and risk >= 0.15 else
+          "rgba(123,184,158,0.10)" if risk is not None else
           "rgba(150,150,150,0.06)")
-    bc = (CRIMSON if risk is not None and risk >= 0.3  else
-          AMBER   if risk is not None and risk >= 0.15 else
-          EMERALD if risk is not None else TEXT3)
+    bc = ("#c98a92" if risk is not None and risk >= 0.3  else
+          "#c9aa78" if risk is not None and risk >= 0.15 else
+          "#7bb89e" if risk is not None else TEXT3)
 
     fig = go.Figure()
 
@@ -421,30 +421,51 @@ def plot_ecg(signal, fs, peaks, windows, win_idx, label_key):
 
 
 def plot_gauge(probability):
-    pct   = (probability or 0) * 100
-    color = (CRIMSON if pct >= 30 else AMBER if pct >= 15 else EMERALD)
+    pct = (probability or 0) * 100
+    if pct >= 30:
+        color, band, soft = "#c98a92", "High Risk", "#fbeef0"
+    elif pct >= 15:
+        color, band, soft = "#c9aa78", "Elevated", "#fbf3e6"
+    else:
+        color, band, soft = "#7bb89e", "Normal", "#ecf8f1"
+
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
         value=pct,
-        number=dict(suffix="%", font=dict(color=color, size=40, family='JetBrains Mono')),
+        number=dict(suffix="%", font=dict(color=color, size=42, family='JetBrains Mono')),
         gauge=dict(
-            axis=dict(range=[0,100], tickwidth=0, tickcolor=TEXT3,
-                      tickfont=dict(color=TEXT3, size=9)),
-            bar=dict(color=color, thickness=0.65),
-            bgcolor=BG3,
+            shape="angular",
+            axis=dict(range=[0, 100], tickvals=[0, 15, 30, 50, 75, 100],
+                      tickwidth=0, tickcolor=TEXT3,
+                      tickfont=dict(color=TEXT3, size=10.5, family='Inter'),
+                      ticksuffix="%"),
+            bar=dict(color=color, thickness=0.5),
+            bgcolor="#fafcfe",
             borderwidth=0,
             steps=[
-                dict(range=[0,15],  color="#e3f9ef"),
-                dict(range=[15,30], color="#fef3e2"),
-                dict(range=[30,100],color="#fde8e8"),
+                dict(range=[0, 15],  color="#ecf8f1"),
+                dict(range=[15, 30], color="#fbf3e6"),
+                dict(range=[30, 100], color="#fbeef0"),
             ],
+            threshold=dict(
+                line=dict(color=TEXT3, width=2),
+                thickness=0.82, value=30,
+            ),
         ),
-        title=dict(text="AFib Risk Score", font=dict(color=TEXT2, size=12, family='Inter')),
+        title=dict(text="AFib Risk Score", font=dict(color=TEXT2, size=14, family='Inter')),
     ))
+
+    fig.add_annotation(
+        x=0.5, y=0.06, xref="paper", yref="paper",
+        text=f"<b>{band.upper()}</b>", showarrow=False,
+        font=dict(color=color, size=12.5, family='Inter'),
+        bgcolor=soft, bordercolor=color, borderwidth=1, borderpad=7,
+    )
+
     fig.update_layout(
-        paper_bgcolor=BG3, plot_bgcolor=BG3,
-        margin=dict(l=16, r=16, t=28, b=4),
-        height=190,
+        paper_bgcolor="#ffffff", plot_bgcolor="#ffffff",
+        margin=dict(l=34, r=34, t=56, b=28),
+        height=340,
     )
     return fig
 
@@ -636,6 +657,8 @@ def main():
             return
 
         # ── Window control ────────────────────────────────────────────────────
+        st.markdown(f"<div class='ht-eyebrow' style='margin-top:4px'>LIVE ECG TRACE</div>",
+                    unsafe_allow_html=True)
         col_sl, col_info = st.columns([5, 1])
         with col_sl:
             win_idx = st.slider(
@@ -674,6 +697,7 @@ def main():
         col_left, col_right = st.columns([1, 2], gap="large")
 
         with col_left:
+            st.markdown(f"<div class='ht-eyebrow'>RISK ASSESSMENT</div>", unsafe_allow_html=True)
             st.plotly_chart(plot_gauge(risk),
                             use_container_width=True, config={"displayModeBar": False})
 
@@ -722,6 +746,8 @@ def main():
         st.divider()
 
         # ── Bottom row ────────────────────────────────────────────────────────
+        st.markdown(f"<div class='ht-eyebrow'>MODEL EXPLAINABILITY &amp; SIGNAL DETAIL</div>",
+                    unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3, gap="medium")
 
         with c1:
@@ -759,6 +785,23 @@ def main():
                 st.markdown(f"<div class='ht-card' style='height:240px;display:flex;"
                             f"align-items:center;justify-content:center;color:{TEXT3};font-size:13px'>"
                             f"No RR intervals detected</div>", unsafe_allow_html=True)
+
+        with st.expander("ℹ️  What do these metrics mean?"):
+            st.markdown(f"""
+            <div style='font-size:12.5px;line-height:1.85;color:{TEXT2}'>
+              <b style='color:{TEXT}'>SDNN / RMSSD / pNN50</b> — standard heart-rate variability
+              measures. Low values can indicate reduced autonomic regulation, a known precursor
+              to paroxysmal AFib episodes.<br>
+              <b style='color:{TEXT}'>PAC Count</b> — premature atrial contractions detected in
+              this window; frequent PACs are a common trigger for AFib onset.<br>
+              <b style='color:{TEXT}'>LF/HF Ratio</b> — sympathetic vs. parasympathetic balance
+              from frequency-domain analysis.<br>
+              <b style='color:{TEXT}'>SampEn</b> — sample entropy; higher values reflect more
+              irregular, less predictable rhythm.<br>
+              <b style='color:{TEXT}'>SHAP values</b> — show how much each feature pushed the
+              model's prediction up (red) or down (green) for this specific window.
+            </div>
+            """, unsafe_allow_html=True)
 
         # ── Auto-play ─────────────────────────────────────────────────────────
         if auto_play:
@@ -842,6 +885,19 @@ def main():
         with c3:
             st.plotly_chart(plot_rr_series(rr, "unknown"), use_container_width=True,
                             config={"displayModeBar": False})
+
+    # ── Footer ────────────────────────────────────────────────────────────────
+    st.markdown(f"""
+    <div style='margin-top:36px;padding-top:16px;border-top:1px solid {BORDER};
+         display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px'>
+      <span style='font-size:11px;color:{TEXT3}'>
+        🫀 HeartTrack AI &nbsp;·&nbsp; CatBoost + SHAP &nbsp;·&nbsp; PAFPDB reference dataset
+      </span>
+      <span style='font-size:11px;color:{TEXT3}'>
+        For research &amp; educational use only — not a diagnostic device. Always consult a clinician.
+      </span>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
