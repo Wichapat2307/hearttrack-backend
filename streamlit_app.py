@@ -1,6 +1,6 @@
 """
 HeartTrack AI — Streamlit App v2
-Fresh Clinical UI
+Fresh Clinical UI with ESP32 Wi‑Fi Streaming
 """
 
 import streamlit as st
@@ -18,6 +18,14 @@ from scipy.interpolate import interp1d
 from scipy.signal import welch, butter, filtfilt, find_peaks, resample
 from scipy.integrate import trapezoid
 import antropy as ant
+
+# ─── Optional ESP32 networking ──────────────────────────────────────────────
+try:
+    import requests
+    REQUESTS_AVAILABLE = True
+except ImportError:
+    REQUESTS_AVAILABLE = False
+    requests = None
 
 # ─── PAGE CONFIG ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -487,6 +495,36 @@ def sliding_windows(signal, fs):
         s += stride
     return out
 
+# ─── ESP32 HELPER ─────────────────────────────────────────────────────────────
+def fetch_esp32_data(ip, port, timeout=2):
+    """Fetch RR intervals from ESP32 HTTP endpoint."""
+    if not REQUESTS_AVAILABLE:
+        st.error("The 'requests' library is not installed. Please run: pip install requests")
+        return None
+    url = f"http://{ip}:{port}/rr"
+    try:
+        resp = requests.get(url, timeout=timeout)
+        if resp.status_code != 200:
+            return None
+        text = resp.text.strip()
+        # Try to parse as CSV or newline-separated values
+        vals = []
+        for line in text.splitlines():
+            for x in line.split(','):
+                x = x.strip()
+                if x:
+                    try:
+                        v = float(x)
+                        if 200 <= v <= 2000:
+                            vals.append(v)
+                    except:
+                        pass
+        if len(vals) == 0:
+            return None
+        return np.array(vals)
+    except Exception as e:
+        return None
+
 # ─── PLOTS ────────────────────────────────────────────────────────────────────
 PLOT_BG = "#f4fafe"
 GRID_C  = "#e0ecf5"
@@ -736,7 +774,7 @@ def main():
 
         mode = st.radio(
             "Select input",
-            ["📂 Demo Recording", "📁 Upload CSV"],
+            ["📂 Demo Recording", "📁 Upload CSV", "📡 ESP32 Stream"],
             label_visibility="collapsed"
         )
         st.divider()
@@ -771,13 +809,45 @@ def main():
                 disabled=not auto_play,
                 help="Time between window advances"
             )
-        else:
+        elif "CSV" in mode:
             uploaded  = st.file_uploader(
                 "Upload RR interval CSV",
                 type=["csv"],
                 label_visibility="collapsed",
                 help="One RR interval (ms) per line, or comma-separated values. Range 200–2000 ms."
             )
+            label_key = "unknown"
+            auto_play = False
+            play_speed = 1.0
+        else:  # ESP32 Stream
+            st.markdown("### 📡 ESP32 Wi‑Fi Stream")
+            esp_ip = st.text_input("IP Address", value="192.168.1.100")
+            esp_port = st.text_input("Port", value="80")
+            connect_btn = st.button("Connect", type="primary")
+            disconnect_btn = st.button("Disconnect", type="secondary")
+
+            # Manage connection state
+            if connect_btn:
+                if not REQUESTS_AVAILABLE:
+                    st.error("The 'requests' library is required. Please install: pip install requests")
+                else:
+                    st.session_state.esp_connected = True
+                    st.session_state.esp_ip = esp_ip
+                    st.session_state.esp_port = esp_port
+                    st.session_state.esp_rr_buffer = []  # store last 300 intervals
+                    st.session_state.esp_last_update = time.time()
+                    st.success(f"Connecting to {esp_ip}:{esp_port}...")
+            if disconnect_btn:
+                st.session_state.esp_connected = False
+                st.session_state.esp_rr_buffer = []
+                st.info("Disconnected")
+
+            # Show status
+            if st.session_state.get("esp_connected", False):
+                st.markdown(f"✅ Connected to `{st.session_state.esp_ip}:{st.session_state.esp_port}`")
+                st.caption(f"Buffer size: {len(st.session_state.esp_rr_buffer)} RR intervals")
+            else:
+                st.markdown("🔴 Not connected")
             label_key = "unknown"
             auto_play = False
             play_speed = 1.0
@@ -1011,7 +1081,7 @@ def main():
     # ═══════════════════════════════════════════════════════════════════════════
     # UPLOAD CSV MODE
     # ═══════════════════════════════════════════════════════════════════════════
-    else:
+    elif "CSV" in mode:
         if not uploaded:
             st.markdown(f"""
             <div class='ht-card' style='text-align: center; padding: 56px 32px;'>
@@ -1101,6 +1171,151 @@ def main():
                 use_container_width=True,
                 config={"displayModeBar": False}
             )
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # ESP32 STREAM MODE
+    # ═══════════════════════════════════════════════════════════════════════════
+    else:
+        if not st.session_state.get("esp_connected", False):
+            st.markdown(f"""
+            <div class='ht-card' style='text-align: center; padding: 56px 32px;'>
+              <div style='font-size: 40px; margin-bottom: 16px;'>📡</div>
+              <div style='font-size: 16px; font-weight: 600; color: {TEXT}; margin-bottom: 8px;'>
+                Connect to ESP32 via Wi‑Fi
+              </div>
+              <div style='font-size: 12px; color: {TEXT3};'>
+                Enter IP and Port in the sidebar, then click Connect.
+                The ESP32 should serve RR intervals on <code>/rr</code>.
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+            return
+
+        # We are connected – fetch data in a loop
+        st.markdown("<div class='ht-eyebrow'>LIVE ESP32 STREAM</div>", unsafe_allow_html=True)
+
+        # Placeholders for dynamic update
+        placeholder_ecg = st.empty()
+        placeholder_risk = st.empty()
+        placeholder_metrics = st.empty()
+        placeholder_bottom = st.empty()
+
+        # We'll maintain a rolling buffer of RR intervals (max 300)
+        if "esp_rr_buffer" not in st.session_state:
+            st.session_state.esp_rr_buffer = []
+
+        # Fetch new data every second
+        for _ in range(100):  # limit to prevent infinite loop in one run
+            if not st.session_state.get("esp_connected", False):
+                st.info("Disconnected by user.")
+                break
+
+            new_rr = fetch_esp32_data(st.session_state.esp_ip, st.session_state.esp_port)
+            if new_rr is not None and len(new_rr) > 0:
+                st.session_state.esp_rr_buffer.extend(new_rr.tolist())
+                # Keep only last 300 intervals
+                if len(st.session_state.esp_rr_buffer) > 300:
+                    st.session_state.esp_rr_buffer = st.session_state.esp_rr_buffer[-300:]
+
+            # If we have enough intervals, compute features and display
+            rr_array = np.array(st.session_state.esp_rr_buffer)
+            if len(rr_array) >= 8:
+                feat = features(rr_array)
+                if feat is not None:
+                    risk = float(mdl.predict_proba(pd.DataFrame([feat]))[0][1])
+                    # Update risk gauge
+                    with placeholder_risk.container():
+                        col_left, col_right = st.columns([1, 2], gap="large")
+                        with col_left:
+                            st.markdown("<div class='ht-eyebrow'>RISK ASSESSMENT</div>", unsafe_allow_html=True)
+                            st.plotly_chart(
+                                plot_gauge(risk),
+                                use_container_width=True,
+                                config={"displayModeBar": False}
+                            )
+                            if risk >= THRESHOLD:
+                                st.markdown(f"""
+                                <div class='risk-banner risk-high'>
+                                  ⚠️ &nbsp; HIGH RISK &nbsp;—&nbsp; PAF Detected &nbsp;
+                                  <span style='font-family: "JetBrains Mono", monospace;'>{risk*100:.1f}%</span>
+                                </div>""", unsafe_allow_html=True)
+                            elif risk >= 0.15:
+                                st.markdown(f"""
+                                <div class='risk-banner risk-medium'>
+                                  🟡 &nbsp; ELEVATED &nbsp;—&nbsp; Monitor closely &nbsp;
+                                  <span style='font-family: "JetBrains Mono", monospace;'>{risk*100:.1f}%</span>
+                                </div>""", unsafe_allow_html=True)
+                            else:
+                                st.markdown(f"""
+                                <div class='risk-banner risk-low'>
+                                  ✅ &nbsp; NORMAL &nbsp;—&nbsp; Healthy sinus rhythm &nbsp;
+                                  <span style='font-family: "JetBrains Mono", monospace;'>{risk*100:.1f}%</span>
+                                </div>""", unsafe_allow_html=True)
+                            st.markdown(f"""
+                            <p style='font-size: 10px; color: {TEXT3}; text-align: center; margin-top: 10px;'>
+                              Buffer size: {len(rr_array)} intervals &nbsp;·&nbsp; Last update: {time.strftime('%H:%M:%S')}
+                            </p>""", unsafe_allow_html=True)
+                        with col_right:
+                            st.markdown("<div class='ht-eyebrow' style='margin-bottom: 12px;'>HRV METRICS</div>", unsafe_allow_html=True)
+                            m1, m2, m3, m4 = st.columns(4)
+                            m1.metric("SDNN",    f"{safe_float(feat['sdnn'], 1)} ms")
+                            m2.metric("RMSSD",   f"{safe_float(feat['rmssd'], 1)} ms")
+                            m3.metric("pNN50",   f"{safe_float(feat['pnn50'], 1)}%")
+                            m4.metric("Mean RR", f"{safe_float(feat['mean_rr'], 0)} ms")
+
+                            m5, m6, m7, m8 = st.columns(4)
+                            pac = feat['pac_count']
+                            m5.metric("PAC Count", str(pac),
+                                      delta="elevated" if pac > 3 else None,
+                                      delta_color="inverse")
+                            m6.metric("LF/HF",  safe_float(feat['lf_hf_ratio'], 2))
+                            m7.metric("SampEn", safe_float(feat['sampen'], 3))
+                            m8.metric("SD1",    f"{safe_float(feat['sd1'], 1)} ms")
+
+                        # Bottom row: Poincaré, RR series, SHAP
+                        with placeholder_bottom.container():
+                            st.divider()
+                            st.markdown("<div class='ht-eyebrow'>MODEL EXPLAINABILITY & SIGNAL DETAIL</div>", unsafe_allow_html=True)
+                            c1, c2, c3 = st.columns(3, gap="medium")
+                            with c1:
+                                if feat:
+                                    st.plotly_chart(
+                                        plot_shap(feat, mdl, expl),
+                                        use_container_width=True,
+                                        config={"displayModeBar": False}
+                                    )
+                                    st.markdown(f"""
+                                    <p style='font-size: 10px; color: {TEXT3}; text-align: center; margin-top: -8px;'>
+                                      🔴 Increases AFib risk &nbsp;·&nbsp; 🟢 Decreases risk
+                                    </p>""", unsafe_allow_html=True)
+                            with c2:
+                                if len(rr_array) > 1:
+                                    st.plotly_chart(
+                                        plot_poincare(rr_array, "unknown"),
+                                        use_container_width=True,
+                                        config={"displayModeBar": False}
+                                    )
+                                    st.markdown(f"""
+                                    <p style='font-size: 10px; color: {TEXT3}; text-align: center; margin-top: -8px;'>
+                                      Tight cluster = regular &nbsp;·&nbsp; Scattered = irregular (AFib)
+                                    </p>""", unsafe_allow_html=True)
+                            with c3:
+                                if len(rr_array) > 0:
+                                    st.plotly_chart(
+                                        plot_rr_series(rr_array, "unknown"),
+                                        use_container_width=True,
+                                        config={"displayModeBar": False}
+                                    )
+            else:
+                with placeholder_risk.container():
+                    st.info(f"⏳ Collecting RR intervals... ({len(rr_array)}/8 needed)")
+
+            # Wait 1 second before next fetch
+            time.sleep(1)
+
+        # If we exit the loop, show a message
+        if not st.session_state.get("esp_connected", False):
+            st.info("Stream ended.")
 
     # ── Footer ────────────────────────────────────────────────────────────────
     st.markdown(f"""
