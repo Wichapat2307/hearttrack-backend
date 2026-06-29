@@ -1,13 +1,12 @@
 """
 HeartTrack AI — Streamlit App v2
-Fresh Clinical UI
+Fresh Clinical UI with Signal Inversion & Robust QRS Detection
 """
 
 import streamlit as st
 import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import joblib
 import shap
 import wfdb
@@ -18,6 +17,7 @@ from scipy.interpolate import interp1d
 from scipy.signal import welch, butter, filtfilt, find_peaks, resample
 from scipy.integrate import trapezoid
 import antropy as ant
+import json
 
 # ─── PAGE CONFIG ──────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -28,26 +28,24 @@ st.set_page_config(
 )
 
 # ─── FRESH DESIGN TOKENS ──────────────────────────────────────────────────────
-# Clean, vibrant palette with a modern clinical feel
-BG       = "#f0f7fa"   # soft icy blue background
-BG2      = "#ffffff"   # pure white for cards/sidebar
+BG       = "#f0f7fa"
+BG2      = "#ffffff"
 BG3      = "#ffffff"
-TINT     = "#e3f0f7"   # light aqua tint for headers
+TINT     = "#e3f0f7"
 BORDER   = "#cde0ea"
 TEXT     = "#1a2d3c"
 TEXT2    = "#4b6a80"
 TEXT3    = "#8ba6bb"
-# Risk colours – more vivid but still tasteful
-CRIMSON  = "#d96c7a"   # warm red
+CRIMSON  = "#d96c7a"
 CRIMSON2 = "#c05b68"
-AMBER    = "#d9a86c"   # golden amber
-EMERALD  = "#45b08c"   # fresh green
-# Primary accent – a lively teal/cyan
-SAPPHIRE = "#2a9d8f"   # teal green
+AMBER    = "#d9a86c"
+EMERALD  = "#45b08c"
+SAPPHIRE = "#2a9d8f"
 SAPPHIRE_DK = "#21867a"
-GOLD     = "#f4a261"   # warm gold for R-peaks
-ECG_COLOR = "#00b4d8"  # bright cyan for ECG trace
-ECG_GLOW  = "rgba(0,180,216,0.15)"  # glow effect
+GOLD     = "#f4a261"
+ECG_COLOR = "#00b4d8"
+PLOT_BG  = "#f4fafe"
+GRID_C   = "#e0ecf5"
 
 # ─── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown(f"""
@@ -59,8 +57,6 @@ st.markdown(f"""
     color: {TEXT};
     font-family: 'Inter', sans-serif;
   }}
-
-  /* Prevent dimming during reruns */
   .stApp, .main, .block-container,
   div[data-testid="stVerticalBlock"], div[data-testid="stHorizontalBlock"],
   div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="element-container"],
@@ -68,32 +64,22 @@ st.markdown(f"""
     opacity: 1 !important;
     transition: none !important;
   }}
-
-  /* Sidebar */
   section[data-testid="stSidebar"] {{
     background: {BG2};
     border-right: 1px solid {BORDER};
     box-shadow: 2px 0 16px rgba(0,0,0,0.02);
   }}
   section[data-testid="stSidebar"] * {{ color: {TEXT} !important; }}
-
-  /* Header */
   .stApp header {{ background: {BG} !important; }}
   .block-container {{
     padding: 1.8rem 2.5rem 3rem !important;
     max-width: 1440px;
   }}
-
-  /* Hide Streamlit branding */
   #MainMenu, footer, header {{ visibility: hidden; }}
-
-  /* Focus states */
   button:focus-visible, input:focus-visible, [role="radio"]:focus-visible {{
     outline: 2px solid {SAPPHIRE} !important;
     outline-offset: 2px !important;
   }}
-
-  /* ── Metric cards ────────────────────────────────────────────────────────── */
   div[data-testid="metric-container"] {{
     background: {BG3};
     border: 1px solid {BORDER};
@@ -136,8 +122,6 @@ st.markdown(f"""
   div[data-testid="stMetric"] * {{
     opacity: 1 !important;
   }}
-
-  /* ── Slider ──────────────────────────────────────────────────────────────── */
   .stSlider [data-baseweb="slider"] {{ padding: 0 !important; }}
   .stSlider [data-baseweb="thumb"] {{
     background: {SAPPHIRE} !important;
@@ -145,8 +129,6 @@ st.markdown(f"""
     box-shadow: 0 2px 10px rgba(42,157,143,0.4) !important;
   }}
   .stSlider [data-baseweb="track-fill"] {{ background: {SAPPHIRE} !important; }}
-
-  /* ── Buttons ─────────────────────────────────────────────────────────────── */
   .stButton > button {{
     background: {SAPPHIRE};
     color: white;
@@ -163,8 +145,6 @@ st.markdown(f"""
     transform: translateY(-2px);
     box-shadow: 0 6px 20px rgba(42,157,143,0.30);
   }}
-
-  /* ── Selectbox ───────────────────────────────────────────────────────────── */
   .stSelectbox [data-baseweb="select"] > div {{
     background: {BG3} !important;
     border-color: {BORDER} !important;
@@ -172,33 +152,23 @@ st.markdown(f"""
     border-radius: 10px !important;
     box-shadow: 0 1px 4px rgba(0,0,0,0.02);
   }}
-
-  /* ── Radio ───────────────────────────────────────────────────────────────── */
   .stRadio [data-testid="stWidgetLabel"] {{
     color: {TEXT2} !important;
     font-size: 12px !important;
   }}
   .stRadio label {{ color: {TEXT} !important; font-size: 13px !important; }}
-
-  /* ── Toggle ──────────────────────────────────────────────────────────────── */
   .stToggle label {{ color: {TEXT} !important; font-size: 13px !important; }}
   .stToggle [data-baseweb="checkbox"] div[aria-checked="true"] {{
     background: {EMERALD} !important;
   }}
-
-  /* ── Alerts ──────────────────────────────────────────────────────────────── */
   div[data-testid="stAlert"] {{
     border-radius: 12px !important;
     border-left: 4px solid {SAPPHIRE} !important;
   }}
-
-  /* ── Divider ────────────────────────────────────────────────────────────── */
   hr {{
     border-color: {BORDER} !important;
     margin: 1.5rem 0 !important;
   }}
-
-  /* ── Tabs ────────────────────────────────────────────────────────────────── */
   .stTabs [data-baseweb="tab-list"] {{
     background: {TINT};
     border-radius: 12px;
@@ -219,13 +189,9 @@ st.markdown(f"""
     color: white !important;
     box-shadow: 0 2px 10px rgba(42,157,143,0.25);
   }}
-
-  /* ── Scrollbar ───────────────────────────────────────────────────────────── */
   ::-webkit-scrollbar {{ width: 6px; }}
   ::-webkit-scrollbar-track {{ background: {BG2}; }}
   ::-webkit-scrollbar-thumb {{ background: {BORDER}; border-radius: 3px; }}
-
-  /* ── Custom Cards ───────────────────────────────────────────────────────── */
   .ht-card {{
     background: {BG3};
     border: 1px solid {BORDER};
@@ -237,7 +203,6 @@ st.markdown(f"""
   .ht-card:hover {{
     box-shadow: 0 4px 20px rgba(0,0,0,0.04);
   }}
-
   .ht-badge {{
     display: inline-flex;
     align-items: center;
@@ -260,8 +225,6 @@ st.markdown(f"""
   .ht-badge-normal   {{ background: #e2f3ec; color: #45b08c; }}
   .ht-badge-distant  {{ background: #f8efe4; color: #d9a86c; }}
   .ht-badge-imminent {{ background: #fae8eb; color: #d96c7a; }}
-
-  /* ── Risk Banner ────────────────────────────────────────────────────────── */
   .risk-banner {{
     border-radius: 12px;
     padding: 16px 22px;
@@ -276,8 +239,6 @@ st.markdown(f"""
   .risk-medium  {{ background: #f8efe4; border: 1px solid #eedbc8; color: #d9a86c; }}
   .risk-low     {{ background: #e2f3ec; border: 1px solid #c8e4d8; color: #45b08c; }}
   .risk-unknown {{ background: {TINT}; border: 1px solid {BORDER}; color: {TEXT2}; }}
-
-  /* ── Eyebrow header ─────────────────────────────────────────────────────── */
   .ht-eyebrow {{
     font-size: 10.5px;
     font-weight: 700;
@@ -297,8 +258,6 @@ st.markdown(f"""
     display: inline-block;
     border-radius: 2px;
   }}
-
-  /* ── Page header ────────────────────────────────────────────────────────── */
   .ht-page-header {{
     display: flex;
     align-items: baseline;
@@ -323,8 +282,6 @@ st.markdown(f"""
     border: 1px solid {BORDER};
     letter-spacing: 0.08em;
   }}
-
-  /* ── Footer ─────────────────────────────────────────────────────────────── */
   .ht-footer {{
     margin-top: 40px;
     padding-top: 20px;
@@ -342,8 +299,6 @@ st.markdown(f"""
     align-items: center;
     gap: 6px;
   }}
-
-  /* ── Plotly container tweaks ────────────────────────────────────────────── */
   .js-plotly-plot .plotly .main-svg {{
     border-radius: 12px;
   }}
@@ -406,7 +361,104 @@ def load_model():
 def load_explainer(_mdl):
     return shap.TreeExplainer(_mdl)
 
-# ─── DSP ──────────────────────────────────────────────────────────────────────
+# ─── ROBUST QRS DETECTION & FEATURE EXTRACTION ─────────────────────────────
+def butter_bandpass(lowcut, highcut, fs, order=2):
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+    b, a = butter(order, [low, high], btype='bandpass')
+    return b, a
+
+def butter_bandpass_filter(data, lowcut, highcut, fs, order=2):
+    b, a = butter_bandpass(lowcut, highcut, fs, order=order)
+    y = filtfilt(b, a, data)
+    return y
+
+def extract_rr_from_ecg(ecg_signal, fs=TARGET_FS):
+    """
+    Robust QRS detection using bandpass (5-15 Hz), derivative, squaring,
+    moving integration, and peak finding.
+    Returns RR intervals (ms) and peak indices.
+    """
+    ecg_clean = np.nan_to_num(ecg_signal)
+    # Bandpass filter to enhance QRS
+    filtered = butter_bandpass_filter(ecg_clean, 5.0, 15.0, fs, order=2)
+    # Derivative & squaring
+    diff = np.diff(filtered, prepend=0)
+    squared = diff ** 2
+    # Moving integration window (120 ms)
+    window = int(0.12 * fs)
+    integrated = np.convolve(squared, np.ones(window)/window, mode='same')
+    # Peak detection with adaptive threshold
+    threshold = np.max(integrated) * 0.18
+    min_dist = int(fs * 0.35)  # 350 ms refractory
+    peaks, _ = find_peaks(integrated, distance=min_dist, height=threshold)
+    if len(peaks) < 2:
+        return np.array([]), peaks
+    rr_ms = np.diff(peaks) * (1000.0 / fs)
+    # Filter physiological range (200-2000 ms)
+    rr_ms = rr_ms[(rr_ms >= 200) & (rr_ms <= 2000)]
+    return rr_ms, peaks
+
+def extract_features(rr_intervals):
+    if len(rr_intervals) < 10:
+        return None
+    rr_prev = rr_intervals[:-1]
+    rr_curr = rr_intervals[1:]
+    diff = np.diff(rr_intervals)
+    # Time domain
+    mean_rr = np.mean(rr_intervals)
+    sdnn = np.std(rr_intervals, ddof=1)
+    rmssd = np.sqrt(np.mean(diff ** 2))
+    pnn50 = (np.sum(np.abs(diff) > 50) / len(rr_intervals)) * 100
+    # Frequency domain (resample to 4 Hz)
+    rr_sec = rr_intervals / 1000.0
+    cum_time = np.cumsum(rr_sec)
+    cum_time -= cum_time[0]
+    fs_hrv = 4.0
+    if len(cum_time) >= 2:
+        t_interp = np.arange(0, cum_time[-1], 1/fs_hrv)
+        if len(t_interp) >= 4:
+            f_interp = interp1d(cum_time, rr_sec, kind='linear', fill_value='extrapolate')
+            rr_int = f_interp(t_interp)
+            rr_int -= np.mean(rr_int)
+            nperseg = min(256, len(rr_int))
+            freqs, psd = welch(rr_int, fs=fs_hrv, nperseg=nperseg)
+            lf_mask = (freqs >= 0.04) & (freqs <= 0.15)
+            hf_mask = (freqs > 0.15) & (freqs <= 0.40)
+            lf = trapezoid(psd[lf_mask], freqs[lf_mask]) if np.any(lf_mask) else 0.0
+            hf = trapezoid(psd[hf_mask], freqs[hf_mask]) if np.any(hf_mask) else 0.0
+            lf_hf_ratio = lf / hf if hf > 0 else 0.0
+        else:
+            lf, hf, lf_hf_ratio = 0.0, 0.0, 0.0
+    else:
+        lf, hf, lf_hf_ratio = 0.0, 0.0, 0.0
+    # Non-linear
+    sd1 = np.sqrt(np.std(rr_prev - rr_curr) ** 2 / 2)
+    sd2 = np.sqrt(np.std(rr_prev + rr_curr) ** 2 / 2)
+    try:
+        sampen = ant.sample_entropy(rr_intervals)
+    except:
+        sampen = 0.0
+    # PAC detection (premature contractions)
+    pac_count = np.sum(rr_curr < 0.80 * rr_prev)
+    pac_ratio = (pac_count / len(rr_intervals)) * 100
+    return {
+        "mean_rr": float(mean_rr),
+        "sdnn": float(sdnn),
+        "rmssd": float(rmssd),
+        "pnn50": float(pnn50),
+        "lf": float(lf),
+        "hf": float(hf),
+        "lf_hf_ratio": float(lf_hf_ratio),
+        "sd1": float(sd1),
+        "sd2": float(sd2),
+        "sampen": float(sampen),
+        "pac_count": int(pac_count),
+        "pac_ratio": float(pac_ratio),
+    }
+
+# ─── DATA LOADING & SLIDING WINDOWS ──────────────────────────────────────────
 @st.cache_data(show_spinner=False)
 def load_ecg(record_name, start_min):
     rp = os.path.join(DB_PATH, record_name)
@@ -418,84 +470,50 @@ def load_ecg(record_name, start_min):
     sig = rec.p_signal[:, 0].astype(np.float64)
     if fs != TARGET_FS:
         sig = resample(sig, int(len(sig) * TARGET_FS / fs))
+    # High-pass filter to remove baseline wander (0.5 Hz)
     b, a = butter(2, 0.5 / (TARGET_FS / 2), btype='high')
-    sig  = filtfilt(b, a, sig)
-    mx   = np.max(np.abs(sig))
-    if mx > 0: sig = sig / mx
+    sig = filtfilt(b, a, sig)
+    # Normalize amplitude
+    mx = np.max(np.abs(sig))
+    if mx > 0:
+        sig = sig / mx
     return sig, TARGET_FS
 
-def r_peaks(signal, fs):
-    b, a   = butter(2, [5/(fs/2), 15/(fs/2)], btype='band')
-    sq     = filtfilt(b, a, signal) ** 2
-    h      = np.mean(sq) + 0.5 * np.std(sq)
-    pk, _  = find_peaks(sq, distance=int(0.2*fs), height=h)
-    return pk
-
-def ecg_to_rr(signal, fs):
-    pk = r_peaks(signal, fs)
-    if len(pk) < 2: return np.array([]), pk
-    rr = np.diff(pk) / fs * 1000.0
-    return rr[(rr>=200)&(rr<=2000)], pk
-
-def features(rr):
-    if len(rr) < 10: return None
-    p, c    = rr[:-1], rr[1:]
-    diff    = np.diff(rr)
-    cum     = np.cumsum(rr/1000) - np.cumsum(rr/1000)[0]
-    fs      = 4.0
-    ti      = np.arange(0, cum[-1], 1/fs)
-    lf=hf=lf_hf=0.0
-    if len(ti) >= 2:
-        fi   = interp1d(cum, rr/1000, kind='linear', fill_value='extrapolate')
-        ri   = fi(ti) - np.mean(fi(ti))
-        fr, psd = welch(ri, fs=fs, nperseg=min(256,len(ri)))
-        lf   = float(trapezoid(psd[(fr>=0.04)&(fr<=0.15)], fr[(fr>=0.04)&(fr<=0.15)])) if np.any((fr>=0.04)&(fr<=0.15)) else 0.0
-        hf   = float(trapezoid(psd[(fr>0.15)&(fr<=0.40)], fr[(fr>0.15)&(fr<=0.40)])) if np.any((fr>0.15)&(fr<=0.40)) else 0.0
-        lf_hf = lf/hf if hf > 0 else 0.0
-    try:    se = float(ant.sample_entropy(rr))
-    except: se = 0.0
-    if math.isnan(se) or math.isinf(se): se = 0.0
-    return {
-        "mean_rr": float(np.mean(rr)),    "sdnn":      float(np.std(rr,ddof=1)),
-        "rmssd":   float(np.sqrt(np.mean(diff**2))),
-        "pnn50":   float((np.sum(np.abs(diff)>50)/len(rr))*100),
-        "lf": lf,  "hf": hf,              "lf_hf_ratio": lf_hf,
-        "sd1":     float(np.sqrt(np.std(p-c)**2/2)),
-        "sd2":     float(np.sqrt(np.std(p+c)**2/2)),
-        "sampen":  se,
-        "pac_count": int(np.sum(c < 0.80*p)),
-        "pac_ratio": float((np.sum(c < 0.80*p)/len(rr))*100),
-    }
-
 @st.cache_data(show_spinner=False)
-def sliding_windows(signal, fs):
-    win, stride = int(WINDOW_SEC*fs), int(STRIDE_SEC*fs)
+def sliding_windows(signal, fs, invert=False):
+    """Extract windows and compute RR/features using robust QRS detector."""
+    if invert:
+        signal = -signal  # flip polarity if lead inversion is enabled
+    win, stride = int(WINDOW_SEC * fs), int(STRIDE_SEC * fs)
     out = []
-    s   = 0
+    s = 0
     while s + win <= len(signal):
-        seg     = signal[s:s+win]
-        rr, _   = ecg_to_rr(seg, fs)
-        feat    = features(rr) if len(rr) >= 10 else None
-        out.append({"start_sec": round(s/fs,1), "end_sec": round((s+win)/fs,1),
-                    "start_idx": s, "end_idx": s+win, "rr": rr, "features": feat})
+        seg = signal[s:s+win]
+        rr, peaks = extract_rr_from_ecg(seg, fs)
+        feat = extract_features(rr) if len(rr) >= 10 else None
+        out.append({
+            "start_sec": round(s/fs, 1),
+            "end_sec": round((s+win)/fs, 1),
+            "start_idx": s,
+            "end_idx": s+win,
+            "rr": rr,
+            "peaks": peaks + s,  # global indices
+            "features": feat
+        })
         s += stride
-    return out
+    return out, signal  # return the (possibly inverted) signal for plotting
 
 # ─── PLOTS ────────────────────────────────────────────────────────────────────
-PLOT_BG = "#f4fafe"
-GRID_C  = "#e0ecf5"
+def plot_ecg(signal, fs, windows, win_idx, label_key, global_peaks=None):
+    t = np.arange(len(signal)) / fs
+    w = windows[win_idx]
+    rc = RISK_COLOR.get(label_key, TEXT2)
 
-def plot_ecg(signal, fs, peaks, windows, win_idx, label_key):
-    t    = np.arange(len(signal)) / fs
-    w    = windows[win_idx]
-    rc   = RISK_COLOR.get(label_key, TEXT2)
-
-    mdl  = load_model()
+    mdl = load_model()
     risk = None
     if w["features"] and mdl:
         risk = float(mdl.predict_proba(pd.DataFrame([w["features"]]))[0][1])
 
-    # Fresh highlight colours
     hl = ("rgba(217,108,122,0.10)" if risk is not None and risk >= 0.3  else
           "rgba(217,168,108,0.10)" if risk is not None and risk >= 0.15 else
           "rgba(69,176,140,0.10)" if risk is not None else
@@ -505,14 +523,13 @@ def plot_ecg(signal, fs, peaks, windows, win_idx, label_key):
           "#45b08c" if risk is not None else TEXT3)
 
     fig = go.Figure()
-
     # Window highlight
     fig.add_vrect(x0=w["start_sec"], x1=w["end_sec"],
                   fillcolor=hl, layer="below", line_width=0)
     for x in [w["start_sec"], w["end_sec"]]:
         fig.add_vline(x=x, line=dict(color=bc, width=1.2, dash="dot"))
 
-    # ECG trace – vibrant cyan, thicker, with subtle glow via opacity
+    # ECG trace
     fig.add_trace(go.Scatter(
         x=t, y=signal, mode='lines',
         line=dict(color=ECG_COLOR, width=1.8),
@@ -520,17 +537,18 @@ def plot_ecg(signal, fs, peaks, windows, win_idx, label_key):
         hovertemplate='%{x:.2f}s<extra></extra>',
     ))
 
-    # R-peaks – golden markers, slightly larger
-    if len(peaks):
+    # R-peaks from current window (global)
+    if len(w["peaks"]) > 0:
+        pk_times = w["peaks"] / fs
+        pk_vals = signal[w["peaks"]]
         fig.add_trace(go.Scatter(
-            x=peaks/fs, y=signal[peaks], mode='markers',
+            x=pk_times, y=pk_vals, mode='markers',
             marker=dict(color=GOLD, size=6, symbol='circle',
                         line=dict(color='white', width=1)),
             name='R-peaks',
             hovertemplate='%{x:.2f}s<extra></extra>',
         ))
 
-    # Risk annotation if available
     if risk is not None:
         fig.add_annotation(
             x=(w["start_sec"]+w["end_sec"])/2, y=0.96, yref='paper',
@@ -550,23 +568,12 @@ def plot_ecg(signal, fs, peaks, windows, win_idx, label_key):
         margin=dict(l=44, r=16, t=12, b=44),
         height=260,
         showlegend=False,
-        xaxis=dict(
-            title='Time (s)',
-            gridcolor=GRID_C,
-            zerolinecolor=GRID_C,
-            tickfont=dict(family='JetBrains Mono', size=10),
-            showgrid=True,
-        ),
-        yaxis=dict(
-            title='Amplitude (norm.)',
-            gridcolor=GRID_C,
-            zerolinecolor=GRID_C,
-            tickfont=dict(family='JetBrains Mono', size=10),
-            showgrid=True,
-        ),
+        xaxis=dict(title='Time (s)', gridcolor=GRID_C, zerolinecolor=GRID_C,
+                   tickfont=dict(family='JetBrains Mono', size=10), showgrid=True),
+        yaxis=dict(title='Amplitude (norm.)', gridcolor=GRID_C, zerolinecolor=GRID_C,
+                   tickfont=dict(family='JetBrains Mono', size=10), showgrid=True),
     )
     return fig
-
 
 def plot_gauge(probability):
     pct = (probability or 0) * 100
@@ -583,14 +590,10 @@ def plot_gauge(probability):
         number=dict(suffix="%", font=dict(color=color, size=42, family='JetBrains Mono')),
         gauge=dict(
             shape="angular",
-            axis=dict(
-                range=[0, 100],
-                tickvals=[0, 15, 30, 50, 75, 100],
-                tickwidth=0,
-                tickcolor=TEXT3,
-                tickfont=dict(color=TEXT3, size=10.5, family='Inter'),
-                ticksuffix="%",
-            ),
+            axis=dict(range=[0, 100], tickvals=[0, 15, 30, 50, 75, 100],
+                      tickwidth=0, tickcolor=TEXT3,
+                      tickfont=dict(color=TEXT3, size=10.5, family='Inter'),
+                      ticksuffix="%"),
             bar=dict(color=color, thickness=0.5),
             bgcolor="#fafcfe",
             borderwidth=0,
@@ -601,8 +604,7 @@ def plot_gauge(probability):
             ],
             threshold=dict(
                 line=dict(color=TEXT3, width=2),
-                thickness=0.82,
-                value=30,
+                thickness=0.82, value=30,
             ),
         ),
         title=dict(text="AFib Risk Score", font=dict(color=TEXT2, size=14, family='Inter')),
@@ -610,26 +612,21 @@ def plot_gauge(probability):
 
     fig.add_annotation(
         x=0.5, y=0.06, xref="paper", yref="paper",
-        text=f"<b>{band.upper()}</b>",
-        showarrow=False,
+        text=f"<b>{band.upper()}</b>", showarrow=False,
         font=dict(color=color, size=12.5, family='Inter'),
-        bgcolor=soft,
-        bordercolor=color,
-        borderwidth=1,
-        borderpad=7,
+        bgcolor=soft, bordercolor=color, borderwidth=1, borderpad=7,
     )
 
     fig.update_layout(
-        paper_bgcolor="#ffffff",
-        plot_bgcolor="#ffffff",
+        paper_bgcolor="#ffffff", plot_bgcolor="#ffffff",
         margin=dict(l=34, r=34, t=56, b=28),
         height=340,
     )
     return fig
 
-
 def plot_poincare(rr, label_key):
-    if len(rr) < 2: return go.Figure()
+    if len(rr) < 2:
+        return go.Figure()
     color = RISK_COLOR.get(label_key, TEXT2)
     mn, mx = rr.min(), rr.max()
     fig = go.Figure()
@@ -656,8 +653,9 @@ def plot_poincare(rr, label_key):
     )
     return fig
 
-
 def plot_rr_series(rr, label_key):
+    if len(rr) == 0:
+        return go.Figure()
     color = RISK_COLOR.get(label_key, TEXT2)
     fig = go.Figure(go.Scatter(
         y=rr, mode='lines+markers',
@@ -678,17 +676,17 @@ def plot_rr_series(rr, label_key):
     )
     return fig
 
-
 def plot_shap(feat, mdl, expl):
-    df  = pd.DataFrame([feat])
-    sv  = expl.shap_values(df)
-    if isinstance(sv, list): sv = sv[1]
-    vals  = sv[0]
+    df = pd.DataFrame([feat])
+    sv = expl.shap_values(df)
+    if isinstance(sv, list):
+        sv = sv[1]
+    vals = sv[0]
     names = list(feat.keys())
     order = np.argsort(np.abs(vals))[::-1][:10]
-    sv    = vals[order]
-    sn    = [names[i] for i in order]
-    colors= [CRIMSON if v > 0 else EMERALD for v in sv]
+    sv = vals[order]
+    sn = [names[i] for i in order]
+    colors = [CRIMSON if v > 0 else EMERALD for v in sv]
 
     fig = go.Figure(go.Bar(
         x=sv, y=sn, orientation='h',
@@ -708,7 +706,6 @@ def plot_shap(feat, mdl, expl):
     )
     return fig
 
-
 # ─── MAIN ─────────────────────────────────────────────────────────────────────
 def main():
     mdl = load_model()
@@ -726,6 +723,15 @@ def main():
           </div>
         </div>
         """, unsafe_allow_html=True)
+        st.divider()
+
+        # ── NEW: Signal inversion toggle ──
+        st.subheader("🔌 Lead Settings")
+        invert_signal = st.checkbox(
+            "Invert ECG waveform (Lead flip)",
+            value=True,
+            help="Enable if R‑peaks appear upside down. This flips the signal to restore upright QRS complexes, ensuring robust detection."
+        )
         st.divider()
 
         mode = st.radio(
@@ -819,8 +825,7 @@ def main():
             signal, fs = load_ecg(record, start_min)
 
         with st.spinner("Running sliding window analysis…"):
-            windows = sliding_windows(signal, fs)
-            all_pk  = r_peaks(signal, fs)
+            windows, signal_corrected = sliding_windows(signal, fs, invert=invert_signal)
 
         n_win = len(windows)
         if n_win == 0:
@@ -853,7 +858,7 @@ def main():
 
         # ── ECG plot ──────────────────────────────────────────────────────────
         st.plotly_chart(
-            plot_ecg(signal, fs, all_pk, windows, win_idx, label_key),
+            plot_ecg(signal_corrected, fs, windows, win_idx, label_key),
             use_container_width=True,
             config={"displayModeBar": False}
         )
@@ -1003,7 +1008,7 @@ def main():
             st.rerun()
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # UPLOAD CSV MODE
+    # UPLOAD CSV MODE (unchanged)
     # ═══════════════════════════════════════════════════════════════════════════
     else:
         if not uploaded:
@@ -1038,7 +1043,7 @@ def main():
             return
 
         st.success(f"✓ Loaded {len(rr)} RR intervals from {uploaded.name}")
-        feat = features(rr)
+        feat = extract_features(rr)  # use the same feature extractor
         if feat is None:
             st.error("Feature extraction failed.")
             return
