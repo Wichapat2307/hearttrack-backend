@@ -27,19 +27,19 @@ st.set_page_config(
 )
 
 # ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
-# Palette: deep navy base, crimson accent, amber warning, emerald safe
-BG       = "#07090f"
-BG2      = "#0d1117"
-BG3      = "#161b22"
-BORDER   = "#21262d"
-TEXT     = "#e6edf3"
-TEXT2    = "#8b949e"
-TEXT3    = "#484f58"
-CRIMSON  = "#e11d48"
-CRIMSON2 = "#9f1239"
-AMBER    = "#d97706"
-EMERALD  = "#059669"
-SAPPHIRE = "#1d4ed8"
+# Palette: white base, light blue accent (UI), light green accent (safe/positive)
+BG       = "#ffffff"
+BG2      = "#f4f9fd"
+BG3      = "#eaf3fb"
+BORDER   = "#d6e6f2"
+TEXT     = "#1b2733"
+TEXT2    = "#5b7488"
+TEXT3    = "#94a8b8"
+CRIMSON  = "#ef4444"   # reserved for high-risk/danger indication
+CRIMSON2 = "#dc2626"
+AMBER    = "#f59e0b"
+EMERALD  = "#34c38f"   # light green
+SAPPHIRE = "#5eb3f0"   # light blue — primary UI accent
 
 # ─── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown(f"""
@@ -63,7 +63,7 @@ st.markdown(f"""
     padding: 16px 18px !important;
     transition: border-color 0.2s;
   }}
-  div[data-testid="metric-container"]:hover {{ border-color: #30363d; }}
+  div[data-testid="metric-container"]:hover {{ border-color: #b9d6ec; }}
   div[data-testid="metric-container"] label {{
     color: {TEXT3} !important;
     font-size: 10px !important;
@@ -83,16 +83,16 @@ st.markdown(f"""
 
   /* Slider */
   .stSlider [data-baseweb="slider"] {{ padding: 0 !important; }}
-  .stSlider [data-baseweb="thumb"] {{ background: {CRIMSON} !important; border: 2px solid white !important; }}
-  .stSlider [data-baseweb="track-fill"] {{ background: {CRIMSON} !important; }}
+  .stSlider [data-baseweb="thumb"] {{ background: {SAPPHIRE} !important; border: 2px solid white !important; }}
+  .stSlider [data-baseweb="track-fill"] {{ background: {SAPPHIRE} !important; }}
 
   /* Buttons */
   .stButton > button {{
-    background: {CRIMSON}; color: white; border: none;
+    background: {SAPPHIRE}; color: white; border: none;
     border-radius: 8px; font-weight: 600; font-size: 13px;
     padding: 8px 20px; transition: all 0.2s;
   }}
-  .stButton > button:hover {{ background: {CRIMSON2}; transform: translateY(-1px); }}
+  .stButton > button:hover {{ background: #3b9ae1; transform: translateY(-1px); }}
 
   /* Select box */
   .stSelectbox [data-baseweb="select"] > div {{
@@ -122,7 +122,7 @@ st.markdown(f"""
     font-weight: 600; font-size: 13px; padding: 8px 18px;
   }}
   .stTabs [aria-selected="true"] {{
-    background: {CRIMSON} !important; color: white !important;
+    background: {SAPPHIRE} !important; color: white !important;
   }}
 
   /* Scrollbar */
@@ -140,9 +140,9 @@ st.markdown(f"""
     padding: 3px 10px; border-radius: 4px; letter-spacing: 0.06em;
     text-transform: uppercase;
   }}
-  .ht-badge-normal   {{ background: #052e16; color: #4ade80; }}
-  .ht-badge-distant  {{ background: #451a03; color: #fbbf24; }}
-  .ht-badge-imminent {{ background: #450a0a; color: #f87171; }}
+  .ht-badge-normal   {{ background: #e3f9ef; color: #1ea672; }}
+  .ht-badge-distant  {{ background: #fef3e2; color: #b45309; }}
+  .ht-badge-imminent {{ background: #fde8e8; color: #c53030; }}
 
   /* Risk banner */
   .risk-banner {{
@@ -150,9 +150,9 @@ st.markdown(f"""
     display: flex; align-items: center; gap: 12px;
     font-weight: 600; font-size: 14px;
   }}
-  .risk-high    {{ background: #450a0a; border: 1px solid #7f1d1d; color: #fca5a5; }}
-  .risk-medium  {{ background: #451a03; border: 1px solid #92400e; color: #fcd34d; }}
-  .risk-low     {{ background: #052e16; border: 1px solid #14532d; color: #86efac; }}
+  .risk-high    {{ background: #fde8e8; border: 1px solid #f5b8b8; color: #c53030; }}
+  .risk-medium  {{ background: #fef3e2; border: 1px solid #f6d8a8; color: #b45309; }}
+  .risk-low     {{ background: #e3f9ef; border: 1px solid #b6ecd3; color: #1ea672; }}
   .risk-unknown {{ background: {BG3};   border: 1px solid {BORDER}; color: {TEXT2}; }}
 </style>
 """, unsafe_allow_html=True)
@@ -289,8 +289,8 @@ def sliding_windows(signal, fs):
     return out
 
 # ─── PLOTS ────────────────────────────────────────────────────────────────────
-PLOT_BG = "#0d1117"
-GRID_C  = "#161b22"
+PLOT_BG = "#f4f9fd"
+GRID_C  = "#e3eef7"
 
 def plot_ecg(signal, fs, peaks, windows, win_idx, label_key):
     t    = np.arange(len(signal)) / fs
@@ -303,10 +303,10 @@ def plot_ecg(signal, fs, peaks, windows, win_idx, label_key):
     if w["features"] and mdl:
         risk = float(mdl.predict_proba(pd.DataFrame([w["features"]]))[0][1])
 
-    hl = ("rgba(239,68,68,0.13)"  if risk is not None and risk >= 0.3  else
-          "rgba(217,119,6,0.10)"  if risk is not None and risk >= 0.15 else
-          "rgba(5,150,105,0.08)"  if risk is not None else
-          "rgba(80,80,80,0.06)")
+    hl = ("rgba(239,68,68,0.10)"  if risk is not None and risk >= 0.3  else
+          "rgba(245,158,11,0.10)" if risk is not None and risk >= 0.15 else
+          "rgba(52,195,143,0.10)" if risk is not None else
+          "rgba(150,150,150,0.06)")
     bc = (CRIMSON if risk is not None and risk >= 0.3  else
           AMBER   if risk is not None and risk >= 0.15 else
           EMERALD if risk is not None else TEXT3)
@@ -340,7 +340,7 @@ def plot_ecg(signal, fs, peaks, windows, win_idx, label_key):
             x=(w["start_sec"]+w["end_sec"])/2, y=0.96, yref='paper',
             text=f"<b>{risk*100:.0f}% risk</b>",
             showarrow=False, font=dict(color=bc, size=11, family='JetBrains Mono'),
-            bgcolor='rgba(13,17,23,0.85)', bordercolor=bc, borderwidth=1, borderpad=5,
+            bgcolor='rgba(255,255,255,0.85)', bordercolor=bc, borderwidth=1, borderpad=5,
         )
 
     fig.update_layout(
@@ -371,9 +371,9 @@ def plot_gauge(probability):
             bgcolor=BG3,
             borderwidth=0,
             steps=[
-                dict(range=[0,15],  color="#052e16"),
-                dict(range=[15,30], color="#431407"),
-                dict(range=[30,100],color="#450a0a"),
+                dict(range=[0,15],  color="#e3f9ef"),
+                dict(range=[15,30], color="#fef3e2"),
+                dict(range=[30,100],color="#fde8e8"),
             ],
         ),
         title=dict(text="AFib Risk Score", font=dict(color=TEXT2, size=12, family='Inter')),
