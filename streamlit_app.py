@@ -118,8 +118,8 @@ def load_model():
     return joblib.load(MODEL_PATH)
 
 @st.cache_resource
-def load_explainer(mdl):
-    return shap.TreeExplainer(mdl)
+def load_explainer(_mdl):
+    return shap.TreeExplainer(_mdl)
 
 # ─── SIGNAL PROCESSING ────────────────────────────────────────────────────────
 @st.cache_data(show_spinner=False)
