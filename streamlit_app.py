@@ -725,6 +725,12 @@ def main():
                   <span style='font-family:"JetBrains Mono",monospace'>{risk*100:.1f}%</span>
                 </div>""", unsafe_allow_html=True)
 
+            st.markdown(f"""
+            <p style='font-size:10px;color:{TEXT3};text-align:center;margin-top:10px'>
+              Model-estimated probability of AFib in this window &nbsp;·&nbsp;
+              &lt;15% normal &nbsp;·&nbsp; 15–30% elevated &nbsp;·&nbsp; &gt;30% high risk
+            </p>""", unsafe_allow_html=True)
+
         with col_right:
             if feat:
                 st.markdown(f"<div class='ht-eyebrow' style='margin-bottom:12px'>HRV Metrics</div>",
@@ -864,6 +870,12 @@ def main():
               {icon} &nbsp; {label} &nbsp;
               <span style='font-family:"JetBrains Mono",monospace'>{risk*100:.1f}%</span>
             </div>""", unsafe_allow_html=True)
+
+            st.markdown(f"""
+            <p style='font-size:10px;color:{TEXT3};text-align:center;margin-top:10px'>
+              Model-estimated probability of AFib in this recording &nbsp;·&nbsp;
+              &lt;15% normal &nbsp;·&nbsp; 15–30% elevated &nbsp;·&nbsp; &gt;30% high risk
+            </p>""", unsafe_allow_html=True)
 
         with col_r:
             st.markdown(f"<div class='ht-eyebrow' style='margin-bottom:12px'>HRV Metrics</div>",
