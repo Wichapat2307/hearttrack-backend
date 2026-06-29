@@ -1,5 +1,6 @@
 """
 HeartTrack AI — Streamlit App v2
+Professional Medical UI
 """
 
 import streamlit as st
@@ -27,30 +28,35 @@ st.set_page_config(
 )
 
 # ─── DESIGN TOKENS ────────────────────────────────────────────────────────────
-# Palette: clinical white/light-blue base with light-green positive accent
-BG       = "#f3f8fc"   # page background — soft clinical blue-white
+# Refined medical palette: calm blues, soft greys, and crisp accents
+BG       = "#f5f9fc"   # page background — very light blue-grey
 BG2      = "#ffffff"   # sidebar / panel background
 BG3      = "#ffffff"   # card background
-TINT     = "#eaf4fb"   # subtle tinted fill (headers, hover states)
-BORDER   = "#dde9f2"
-TEXT     = "#1a2b3a"
-TEXT2    = "#5c7689"
-TEXT3    = "#9bb0bf"
-CRIMSON  = "#c9707a"   # reserved for high-risk/danger indication
-CRIMSON2 = "#b85e69"
-AMBER    = "#c79552"
-EMERALD  = "#4f9379"   # light green — safe/positive
-SAPPHIRE = "#4a90c2"   # light blue — primary clinical accent
-SAPPHIRE_DK = "#3a749e"
+TINT     = "#eaf2f9"   # subtle tint for headers and highlights
+BORDER   = "#d5e0eb"
+TEXT     = "#1a2e3f"
+TEXT2    = "#4e6a82"
+TEXT3    = "#8aa3b9"
+CRIMSON  = "#bf6f7a"   # softer red for high risk
+CRIMSON2 = "#a85e68"
+AMBER    = "#c29a5f"
+EMERALD  = "#4f8f7a"   # light green
+SAPPHIRE = "#3d84b8"   # primary blue
+SAPPHIRE_DK = "#326b99"
+GOLD     = "#e8b84c"
 
 # ─── CSS ──────────────────────────────────────────────────────────────────────
 st.markdown(f"""
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Source+Serif+4:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 
-  html, body, .stApp {{ background: {BG}; color: {TEXT}; font-family: 'Inter', sans-serif; }}
+  html, body, .stApp {{
+    background: {BG};
+    color: {TEXT};
+    font-family: 'Inter', sans-serif;
+  }}
 
-  /* Prevent Streamlit's "stale content" dimming during reruns (e.g. auto-play) */
+  /* Prevent dimming during reruns */
   .stApp, .main, .block-container,
   div[data-testid="stVerticalBlock"], div[data-testid="stHorizontalBlock"],
   div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="element-container"],
@@ -58,35 +64,44 @@ st.markdown(f"""
     opacity: 1 !important;
     transition: none !important;
   }}
+
+  /* Sidebar */
   section[data-testid="stSidebar"] {{
-    background: {BG2}; border-right: 1px solid {BORDER};
-    box-shadow: 2px 0 8px rgba(61,139,196,0.04);
+    background: {BG2};
+    border-right: 1px solid {BORDER};
+    box-shadow: 2px 0 12px rgba(0,0,0,0.03);
   }}
   section[data-testid="stSidebar"] * {{ color: {TEXT} !important; }}
+
+  /* Header */
   .stApp header {{ background: {BG} !important; }}
-  .block-container {{ padding: 1.5rem 2rem 3rem !important; max-width: 1400px; }}
-
-  /* Remove streamlit branding */
-  #MainMenu, footer, header {{ visibility: hidden; }}
-
-  /* Focus states for accessibility */
-  button:focus-visible, input:focus-visible, [role="radio"]:focus-visible {{
-    outline: 2px solid {SAPPHIRE} !important; outline-offset: 2px !important;
+  .block-container {{
+    padding: 1.8rem 2.5rem 3rem !important;
+    max-width: 1440px;
   }}
 
-  /* Metric cards — fully custom, clinical "vital sign" tiles */
+  /* Hide Streamlit branding */
+  #MainMenu, footer, header {{ visibility: hidden; }}
+
+  /* Focus states */
+  button:focus-visible, input:focus-visible, [role="radio"]:focus-visible {{
+    outline: 2px solid {SAPPHIRE} !important;
+    outline-offset: 2px !important;
+  }}
+
+  /* ── Metric cards ────────────────────────────────────────────────────────── */
   div[data-testid="metric-container"] {{
     background: {BG3};
     border: 1px solid {BORDER};
-    border-left: 3px solid {SAPPHIRE};
-    border-radius: 10px;
-    padding: 14px 18px !important;
-    box-shadow: 0 1px 2px rgba(28,55,80,0.05);
-    transition: box-shadow 0.2s, border-color 0.2s;
+    border-radius: 12px;
+    padding: 16px 18px !important;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    transition: all 0.2s ease;
   }}
   div[data-testid="metric-container"]:hover {{
-    border-color: #b9d6ec;
-    box-shadow: 0 4px 14px rgba(61,139,196,0.12);
+    border-color: #b8d0e6;
+    box-shadow: 0 4px 12px rgba(61,132,184,0.10);
+    transform: translateY(-1px);
   }}
   div[data-testid="metric-container"] label,
   div[data-testid="stMetric"] label,
@@ -113,109 +128,220 @@ st.markdown(f"""
     font-size: 11px !important;
     opacity: 1 !important;
   }}
-  /* Catch-all: any text inside a metric tile should be fully opaque and dark */
-  div[data-testid="metric-container"] *, div[data-testid="stMetric"] * {{
+  div[data-testid="metric-container"] *,
+  div[data-testid="stMetric"] * {{
     opacity: 1 !important;
   }}
 
-  /* Slider */
+  /* ── Slider ──────────────────────────────────────────────────────────────── */
   .stSlider [data-baseweb="slider"] {{ padding: 0 !important; }}
   .stSlider [data-baseweb="thumb"] {{
-    background: {SAPPHIRE} !important; border: 3px solid white !important;
-    box-shadow: 0 1px 4px rgba(61,139,196,0.45) !important;
+    background: {SAPPHIRE} !important;
+    border: 3px solid white !important;
+    box-shadow: 0 2px 8px rgba(61,132,184,0.4) !important;
   }}
   .stSlider [data-baseweb="track-fill"] {{ background: {SAPPHIRE} !important; }}
 
-  /* Buttons */
+  /* ── Buttons ─────────────────────────────────────────────────────────────── */
   .stButton > button {{
-    background: {SAPPHIRE}; color: white; border: none;
-    border-radius: 8px; font-weight: 600; font-size: 13px;
-    padding: 8px 20px; transition: all 0.2s;
-    box-shadow: 0 1px 3px rgba(61,139,196,0.35);
+    background: {SAPPHIRE};
+    color: white;
+    border: none;
+    border-radius: 10px;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 10px 24px;
+    transition: all 0.2s;
+    box-shadow: 0 2px 8px rgba(61,132,184,0.25);
   }}
   .stButton > button:hover {{
-    background: {SAPPHIRE_DK}; transform: translateY(-1px);
-    box-shadow: 0 4px 10px rgba(61,139,196,0.4);
+    background: {SAPPHIRE_DK};
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(61,132,184,0.30);
   }}
 
-  /* Select box */
+  /* ── Selectbox ───────────────────────────────────────────────────────────── */
   .stSelectbox [data-baseweb="select"] > div {{
-    background: {BG3} !important; border-color: {BORDER} !important;
-    color: {TEXT} !important; border-radius: 8px !important;
+    background: {BG3} !important;
+    border-color: {BORDER} !important;
+    color: {TEXT} !important;
+    border-radius: 10px !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
   }}
 
-  /* Radio */
-  .stRadio [data-testid="stWidgetLabel"] {{ color: {TEXT2} !important; font-size: 12px !important; }}
+  /* ── Radio ───────────────────────────────────────────────────────────────── */
+  .stRadio [data-testid="stWidgetLabel"] {{
+    color: {TEXT2} !important;
+    font-size: 12px !important;
+  }}
   .stRadio label {{ color: {TEXT} !important; font-size: 13px !important; }}
 
-  /* Toggle */
+  /* ── Toggle ──────────────────────────────────────────────────────────────── */
   .stToggle label {{ color: {TEXT} !important; font-size: 13px !important; }}
-  .stToggle [data-baseweb="checkbox"] div[aria-checked="true"] {{ background: {EMERALD} !important; }}
+  .stToggle [data-baseweb="checkbox"] div[aria-checked="true"] {{
+    background: {EMERALD} !important;
+  }}
 
-  /* Alerts */
-  div[data-testid="stAlert"] {{ border-radius: 10px !important; }}
+  /* ── Alerts ──────────────────────────────────────────────────────────────── */
+  div[data-testid="stAlert"] {{
+    border-radius: 12px !important;
+    border-left: 4px solid {SAPPHIRE} !important;
+  }}
 
-  /* Divider */
-  hr {{ border-color: {BORDER} !important; margin: 1.2rem 0 !important; }}
+  /* ── Divider ────────────────────────────────────────────────────────────── */
+  hr {{
+    border-color: {BORDER} !important;
+    margin: 1.5rem 0 !important;
+  }}
 
-  /* Tabs */
+  /* ── Tabs ────────────────────────────────────────────────────────────────── */
   .stTabs [data-baseweb="tab-list"] {{
-    background: {TINT}; border-radius: 10px; padding: 4px; gap: 4px; border: 1px solid {BORDER};
+    background: {TINT};
+    border-radius: 12px;
+    padding: 4px;
+    gap: 4px;
+    border: 1px solid {BORDER};
   }}
   .stTabs [data-baseweb="tab"] {{
-    background: transparent; color: {TEXT2}; border-radius: 7px;
-    font-weight: 600; font-size: 13px; padding: 8px 18px;
+    background: transparent;
+    color: {TEXT2};
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 8px 20px;
   }}
   .stTabs [aria-selected="true"] {{
-    background: {SAPPHIRE} !important; color: white !important;
-    box-shadow: 0 1px 4px rgba(61,139,196,0.35);
+    background: {SAPPHIRE} !important;
+    color: white !important;
+    box-shadow: 0 2px 8px rgba(61,132,184,0.25);
   }}
 
-  /* Scrollbar */
+  /* ── Scrollbar ───────────────────────────────────────────────────────────── */
   ::-webkit-scrollbar {{ width: 6px; }}
   ::-webkit-scrollbar-track {{ background: {BG2}; }}
   ::-webkit-scrollbar-thumb {{ background: {BORDER}; border-radius: 3px; }}
 
-  /* Custom card */
+  /* ── Custom Cards ───────────────────────────────────────────────────────── */
   .ht-card {{
-    background: {BG3}; border: 1px solid {BORDER};
-    border-radius: 12px; padding: 20px;
-    box-shadow: 0 1px 3px rgba(28,55,80,0.05);
+    background: {BG3};
+    border: 1px solid {BORDER};
+    border-radius: 16px;
+    padding: 22px 24px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+    transition: box-shadow 0.2s;
   }}
+  .ht-card:hover {{
+    box-shadow: 0 4px 16px rgba(0,0,0,0.04);
+  }}
+
   .ht-badge {{
-    display: inline-flex; align-items: center; gap: 5px;
-    font-size: 10px; font-weight: 700;
-    padding: 4px 11px; border-radius: 20px; letter-spacing: 0.06em;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 4px 14px;
+    border-radius: 30px;
+    letter-spacing: 0.08em;
     text-transform: uppercase;
   }}
   .ht-badge::before {{
-    content: ''; width: 6px; height: 6px; border-radius: 50%;
-    background: currentColor; display: inline-block;
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+    display: inline-block;
   }}
-  .ht-badge-normal   {{ background: #ecf8f1; color: #4f9379; }}
-  .ht-badge-distant  {{ background: #fbf3e6; color: #ab8147; }}
-  .ht-badge-imminent {{ background: #fbeef0; color: #b66b73; }}
+  .ht-badge-normal   {{ background: #e8f5ed; color: #4f8f7a; }}
+  .ht-badge-distant  {{ background: #f8f0e0; color: #a8894a; }}
+  .ht-badge-imminent {{ background: #f8e9ec; color: #bf6f7a; }}
 
-  /* Risk banner */
+  /* ── Risk Banner ────────────────────────────────────────────────────────── */
   .risk-banner {{
-    border-radius: 10px; padding: 14px 20px;
-    display: flex; align-items: center; gap: 12px;
-    font-weight: 600; font-size: 14px;
-    box-shadow: 0 1px 3px rgba(28,55,80,0.04);
+    border-radius: 12px;
+    padding: 16px 22px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-weight: 600;
+    font-size: 14px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.02);
   }}
-  .risk-high    {{ background: #fbeef0; border: 1px solid #f1d4d8; color: #b66b73; }}
-  .risk-medium  {{ background: #fbf3e6; border: 1px solid #f0e0bf; color: #ab8147; }}
-  .risk-low     {{ background: #ecf8f1; border: 1px solid #c9e8d7; color: #4f9379; }}
-  .risk-unknown {{ background: {TINT};  border: 1px solid {BORDER}; color: {TEXT2}; }}
+  .risk-high    {{ background: #f8e9ec; border: 1px solid #efd5d9; color: #bf6f7a; }}
+  .risk-medium  {{ background: #f8f0e0; border: 1px solid #ede0c5; color: #a8894a; }}
+  .risk-low     {{ background: #e8f5ed; border: 1px solid #cde4d7; color: #4f8f7a; }}
+  .risk-unknown {{ background: {TINT}; border: 1px solid {BORDER}; color: {TEXT2}; }}
 
-  /* Section eyebrow label used before headers */
+  /* ── Eyebrow header ─────────────────────────────────────────────────────── */
   .ht-eyebrow {{
-    font-size: 10.5px; font-weight: 700; color: {SAPPHIRE_DK};
-    letter-spacing: 0.1em; text-transform: uppercase;
-    display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+    font-size: 10.5px;
+    font-weight: 700;
+    color: {SAPPHIRE_DK};
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 6px;
   }}
   .ht-eyebrow::before {{
-    content: ''; width: 14px; height: 2px; background: {SAPPHIRE}; display: inline-block; border-radius: 1px;
+    content: '';
+    width: 18px;
+    height: 2px;
+    background: {SAPPHIRE};
+    display: inline-block;
+    border-radius: 2px;
+  }}
+
+  /* ── Page header ────────────────────────────────────────────────────────── */
+  .ht-page-header {{
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    margin-bottom: 4px;
+  }}
+  .ht-page-header h1 {{
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: {TEXT};
+    font-family: 'Source Serif 4', serif;
+    margin: 0;
+  }}
+  .ht-page-header .badge {{
+    font-size: 10px;
+    font-weight: 700;
+    color: {SAPPHIRE_DK};
+    background: {TINT};
+    padding: 5px 14px;
+    border-radius: 30px;
+    border: 1px solid {BORDER};
+    letter-spacing: 0.08em;
+  }}
+
+  /* ── Footer ─────────────────────────────────────────────────────────────── */
+  .ht-footer {{
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid {BORDER};
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-size: 11px;
+    color: {TEXT3};
+  }}
+  .ht-footer span {{
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }}
+
+  /* ── Adjust plotly container ────────────────────────────────────────────── */
+  .js-plotly-plot .plotly .main-svg {{
+    border-radius: 12px;
   }}
 </style>
 """, unsafe_allow_html=True)
@@ -360,44 +486,38 @@ def plot_ecg(signal, fs, peaks, windows, win_idx, label_key):
     w    = windows[win_idx]
     rc   = RISK_COLOR.get(label_key, TEXT2)
 
-    # Risk color for highlight
     mdl  = load_model()
     risk = None
     if w["features"] and mdl:
         risk = float(mdl.predict_proba(pd.DataFrame([w["features"]]))[0][1])
 
-    hl = ("rgba(201,138,146,0.10)" if risk is not None and risk >= 0.3  else
-          "rgba(201,170,120,0.10)" if risk is not None and risk >= 0.15 else
-          "rgba(123,184,158,0.10)" if risk is not None else
+    hl = ("rgba(191,111,122,0.12)" if risk is not None and risk >= 0.3  else
+          "rgba(194,154,95,0.12)" if risk is not None and risk >= 0.15 else
+          "rgba(79,143,122,0.12)" if risk is not None else
           "rgba(150,150,150,0.06)")
-    bc = ("#c98a92" if risk is not None and risk >= 0.3  else
-          "#c9aa78" if risk is not None and risk >= 0.15 else
-          "#7bb89e" if risk is not None else TEXT3)
+    bc = ("#bf6f7a" if risk is not None and risk >= 0.3  else
+          "#c29a5f" if risk is not None and risk >= 0.15 else
+          "#4f8f7a" if risk is not None else TEXT3)
 
     fig = go.Figure()
-
-    # Window shading
     fig.add_vrect(x0=w["start_sec"], x1=w["end_sec"],
                   fillcolor=hl, layer="below", line_width=0)
     for x in [w["start_sec"], w["end_sec"]]:
         fig.add_vline(x=x, line=dict(color=bc, width=1.2, dash="dot"))
 
-    # Signal
     fig.add_trace(go.Scatter(
         x=t, y=signal, mode='lines',
         line=dict(color=rc, width=1.0),
         name='ECG', hovertemplate='%{x:.2f}s<extra></extra>',
     ))
 
-    # R-peaks
     if len(peaks):
         fig.add_trace(go.Scatter(
             x=peaks/fs, y=signal[peaks], mode='markers',
-            marker=dict(color='#fbbf24', size=4, symbol='circle'),
+            marker=dict(color=GOLD, size=4, symbol='circle'),
             name='R-peaks', hovertemplate='%{x:.2f}s<extra></extra>',
         ))
 
-    # Risk annotation
     if risk is not None:
         fig.add_annotation(
             x=(w["start_sec"]+w["end_sec"])/2, y=0.96, yref='paper',
@@ -423,11 +543,11 @@ def plot_ecg(signal, fs, peaks, windows, win_idx, label_key):
 def plot_gauge(probability):
     pct = (probability or 0) * 100
     if pct >= 30:
-        color, band, soft = "#c98a92", "High Risk", "#fbeef0"
+        color, band, soft = "#bf6f7a", "High Risk", "#f8e9ec"
     elif pct >= 15:
-        color, band, soft = "#c9aa78", "Elevated", "#fbf3e6"
+        color, band, soft = "#c29a5f", "Elevated", "#f8f0e0"
     else:
-        color, band, soft = "#7bb89e", "Normal", "#ecf8f1"
+        color, band, soft = "#4f8f7a", "Normal", "#e8f5ed"
 
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
@@ -443,9 +563,9 @@ def plot_gauge(probability):
             bgcolor="#fafcfe",
             borderwidth=0,
             steps=[
-                dict(range=[0, 15],  color="#ecf8f1"),
-                dict(range=[15, 30], color="#fbf3e6"),
-                dict(range=[30, 100], color="#fbeef0"),
+                dict(range=[0, 15],  color="#e8f5ed"),
+                dict(range=[15, 30], color="#f8f0e0"),
+                dict(range=[30, 100], color="#f8e9ec"),
             ],
             threshold=dict(
                 line=dict(color=TEXT3, width=2),
@@ -558,75 +678,88 @@ def main():
     # ── Sidebar ───────────────────────────────────────────────────────────────
     with st.sidebar:
         st.markdown(f"""
-        <div style='padding:6px 0 16px'>
-          <div style='font-size:21px;font-weight:700;letter-spacing:-0.01em;color:{TEXT};
-               font-family:"Source Serif 4",serif;display:flex;align-items:center;gap:8px'>
-            <span style='display:inline-flex;align-items:center;justify-content:center;
-                  width:30px;height:30px;border-radius:8px;background:{TINT};font-size:16px'>🫀</span>
-            HeartTrack AI
-          </div>
-          <div style='font-size:10.5px;color:{TEXT3};margin-top:6px;letter-spacing:0.07em;
-               padding-left:38px'>
-            PAF DETECTION · CLINICAL DASHBOARD
+        <div style='padding: 0 0 20px 0;'>
+          <div style='display: flex; align-items: center; gap: 10px;'>
+            <div style='background: {TINT}; border-radius: 12px; padding: 8px 10px; font-size: 22px;'>🫀</div>
+            <div>
+              <div style='font-size: 22px; font-weight: 700; letter-spacing: -0.02em; color: {TEXT}; font-family: "Source Serif 4", serif;'>HeartTrack AI</div>
+              <div style='font-size: 10.5px; color: {TEXT3}; letter-spacing: 0.07em;'>PAF DETECTION · v2</div>
+            </div>
           </div>
         </div>
         """, unsafe_allow_html=True)
         st.divider()
 
-        mode = st.radio("", ["📂 Demo Recording", "📁 Upload CSV"], label_visibility="collapsed")
+        mode = st.radio(
+            "Select input",
+            ["📂 Demo Recording", "📁 Upload CSV"],
+            label_visibility="collapsed"
+        )
         st.divider()
 
         if "Demo" in mode:
-            demo_label = st.selectbox("", list(DEMO_RECORDS.keys()), label_visibility="collapsed")
+            demo_label = st.selectbox(
+                "Choose a recording",
+                list(DEMO_RECORDS.keys()),
+                label_visibility="collapsed"
+            )
             record, start_min, label_key = DEMO_RECORDS[demo_label]
 
             bc = BADGE_CLASS.get(label_key, "")
             bl = BADGE_LABEL.get(label_key, "")
             st.markdown(f"""
-            <div class='ht-card' style='margin-top:8px;font-size:12px'>
+            <div class='ht-card' style='margin-top: 6px; padding: 16px 18px;'>
               <span class='ht-badge {bc}'>{bl}</span>
-              <div style='margin-top:10px;color:{TEXT2};line-height:1.8'>
-                <span style='color:{TEXT3}'>Record</span> &nbsp; {record}<br>
-                <span style='color:{TEXT3}'>Start</span> &nbsp;&nbsp;&nbsp; min {start_min}<br>
-                <span style='color:{TEXT3}'>Duration</span> &nbsp; {SNIPPET_SEC}s<br>
-                <span style='color:{TEXT3}'>Window</span> &nbsp;&nbsp; {WINDOW_SEC}s / {STRIDE_SEC}s stride
+              <div style='margin-top: 12px; color: {TEXT2}; line-height: 1.8; font-size: 12.5px;'>
+                <span style='color: {TEXT3};'>Record</span> &nbsp; <b>{record}</b><br>
+                <span style='color: {TEXT3};'>Start</span> &nbsp;&nbsp;&nbsp; <b>min {start_min}</b><br>
+                <span style='color: {TEXT3};'>Duration</span> &nbsp; <b>{SNIPPET_SEC}s</b><br>
+                <span style='color: {TEXT3};'>Window</span> &nbsp;&nbsp; <b>{WINDOW_SEC}s / {STRIDE_SEC}s stride</b>
               </div>
             </div>
             """, unsafe_allow_html=True)
 
             st.divider()
-            auto_play  = st.toggle("▶ Auto-play", value=False)
-            play_speed = st.slider("Speed (s/window)", 0.3, 3.0, 1.0, 0.1,
-                                   disabled=not auto_play)
+            auto_play  = st.toggle("▶ Auto‑play", value=False)
+            play_speed = st.slider(
+                "Speed (s/window)",
+                0.3, 3.0, 1.0, 0.1,
+                disabled=not auto_play,
+                help="Time between window advances"
+            )
         else:
-            uploaded  = st.file_uploader("RR Interval CSV", type=["csv"],
-                                         label_visibility="collapsed")
+            uploaded  = st.file_uploader(
+                "Upload RR interval CSV",
+                type=["csv"],
+                label_visibility="collapsed",
+                help="One RR interval (ms) per line, or comma-separated values. Range 200–2000 ms."
+            )
             label_key = "unknown"
             auto_play = False
             play_speed = 1.0
 
         st.divider()
         if mdl:
-            st.markdown(f"<div style='font-size:11px;color:{TEXT3}'>✓ CatBoost model loaded</div>",
-                        unsafe_allow_html=True)
+            st.markdown(
+                f"<div style='font-size: 11px; color: {EMERALD}; display: flex; align-items: center; gap: 6px;'>"
+                f"<span style='font-size: 14px;'>✓</span> CatBoost model loaded</div>",
+                unsafe_allow_html=True
+            )
         else:
-            st.markdown(f"<div style='font-size:11px;color:{CRIMSON}'>✗ Model not found</div>",
-                        unsafe_allow_html=True)
+            st.markdown(
+                f"<div style='font-size: 11px; color: {CRIMSON}; display: flex; align-items: center; gap: 6px;'>"
+                f"<span style='font-size: 14px;'>✗</span> Model not found — run training first</div>",
+                unsafe_allow_html=True
+            )
 
-    # ── Header ────────────────────────────────────────────────────────────────
-    st.markdown(f"""
-    <div class='ht-eyebrow'>CLINICAL DASHBOARD</div>
-    <div style='display:flex;align-items:baseline;gap:14px;margin-bottom:6px'>
-      <span style='font-size:30px;font-weight:700;letter-spacing:-0.02em;color:{TEXT};
-             font-family:"Source Serif 4",serif'>HeartTrack AI</span>
-      <span style='font-size:10px;font-weight:700;color:{SAPPHIRE_DK};padding:4px 11px;
-             background:{TINT};border:1px solid {BORDER};border-radius:20px;letter-spacing:0.08em'>
-        ● LIVE ANALYSIS
-      </span>
+    # ── Main Header ───────────────────────────────────────────────────────────
+    st.markdown("""
+    <div class='ht-page-header'>
+      <h1>HeartTrack AI</h1>
+      <span class='badge'>● LIVE ANALYSIS</span>
     </div>
-    <p style='color:{TEXT2};margin:0 0 22px;font-size:13px;letter-spacing:0.01em'>
-      Paroxysmal Atrial Fibrillation &nbsp;·&nbsp; Real ECG from PAFPDB
-      &nbsp;·&nbsp; CatBoost + SHAP Explainability
+    <p style='color: #4e6a82; margin: 0 0 24px 0; font-size: 13px; letter-spacing: 0.01em;'>
+      Paroxysmal Atrial Fibrillation detection · Real ECG from PAFPDB · CatBoost + SHAP explainability
     </p>
     """, unsafe_allow_html=True)
 
@@ -656,9 +789,8 @@ def main():
             st.error("No windows extracted.")
             return
 
-        # ── Window control ────────────────────────────────────────────────────
-        st.markdown(f"<div class='ht-eyebrow' style='margin-top:4px'>LIVE ECG TRACE</div>",
-                    unsafe_allow_html=True)
+        # ── Window slider ─────────────────────────────────────────────────────
+        st.markdown("<div class='ht-eyebrow'>ECG TRACE</div>", unsafe_allow_html=True)
         col_sl, col_info = st.columns([5, 1])
         with col_sl:
             win_idx = st.slider(
@@ -671,38 +803,43 @@ def main():
         with col_info:
             w = windows[win_idx]
             st.markdown(f"""
-            <div style='text-align:right;padding-top:6px'>
-              <span style='font-size:18px;font-weight:700;
-                font-family:"JetBrains Mono",monospace;color:{TEXT}'>
+            <div style='text-align: right; padding-top: 6px;'>
+              <span style='font-size: 20px; font-weight: 700; font-family: "JetBrains Mono", monospace; color: {TEXT};'>
                 {win_idx+1} / {n_win}
               </span><br>
-              <span style='font-size:11px;color:{TEXT3}'>
+              <span style='font-size: 11px; color: {TEXT3};'>
                 {w['start_sec']}s → {w['end_sec']}s
               </span>
             </div>
             """, unsafe_allow_html=True)
 
         # ── ECG plot ──────────────────────────────────────────────────────────
-        st.plotly_chart(plot_ecg(signal, fs, all_pk, windows, win_idx, label_key),
-                        use_container_width=True, config={"displayModeBar": False})
+        st.plotly_chart(
+            plot_ecg(signal, fs, all_pk, windows, win_idx, label_key),
+            use_container_width=True,
+            config={"displayModeBar": False}
+        )
 
-        # ── Model inference on current window ─────────────────────────────────
+        # ── Model inference ──────────────────────────────────────────────────
         w    = windows[win_idx]
         feat = w["features"]
         risk = None
         if feat:
             risk = float(mdl.predict_proba(pd.DataFrame([feat]))[0][1])
 
-        # ── Risk banner + gauge + metrics ─────────────────────────────────────
+        # ── Risk + Metrics ────────────────────────────────────────────────────
         col_left, col_right = st.columns([1, 2], gap="large")
 
         with col_left:
-            st.markdown(f"<div class='ht-eyebrow'>RISK ASSESSMENT</div>", unsafe_allow_html=True)
-            st.plotly_chart(plot_gauge(risk),
-                            use_container_width=True, config={"displayModeBar": False})
+            st.markdown("<div class='ht-eyebrow'>RISK ASSESSMENT</div>", unsafe_allow_html=True)
+            st.plotly_chart(
+                plot_gauge(risk),
+                use_container_width=True,
+                config={"displayModeBar": False}
+            )
 
             if risk is None:
-                st.markdown(f"""
+                st.markdown("""
                 <div class='risk-banner risk-unknown'>
                   ⚪ &nbsp; Not enough beats in this window
                 </div>""", unsafe_allow_html=True)
@@ -710,106 +847,118 @@ def main():
                 st.markdown(f"""
                 <div class='risk-banner risk-high'>
                   ⚠️ &nbsp; HIGH RISK &nbsp;—&nbsp; PAF Detected &nbsp;
-                  <span style='font-family:"JetBrains Mono",monospace'>{risk*100:.1f}%</span>
+                  <span style='font-family: "JetBrains Mono", monospace;'>{risk*100:.1f}%</span>
                 </div>""", unsafe_allow_html=True)
             elif risk >= 0.15:
                 st.markdown(f"""
                 <div class='risk-banner risk-medium'>
                   🟡 &nbsp; ELEVATED &nbsp;—&nbsp; Monitor closely &nbsp;
-                  <span style='font-family:"JetBrains Mono",monospace'>{risk*100:.1f}%</span>
+                  <span style='font-family: "JetBrains Mono", monospace;'>{risk*100:.1f}%</span>
                 </div>""", unsafe_allow_html=True)
             else:
                 st.markdown(f"""
                 <div class='risk-banner risk-low'>
                   ✅ &nbsp; NORMAL &nbsp;—&nbsp; Healthy sinus rhythm &nbsp;
-                  <span style='font-family:"JetBrains Mono",monospace'>{risk*100:.1f}%</span>
+                  <span style='font-family: "JetBrains Mono", monospace;'>{risk*100:.1f}%</span>
                 </div>""", unsafe_allow_html=True)
 
             st.markdown(f"""
-            <p style='font-size:10px;color:{TEXT3};text-align:center;margin-top:10px'>
-              Model-estimated probability of AFib in this window &nbsp;·&nbsp;
+            <p style='font-size: 10px; color: {TEXT3}; text-align: center; margin-top: 10px;'>
+              Model‑estimated probability of AFib in this window &nbsp;·&nbsp;
               &lt;15% normal &nbsp;·&nbsp; 15–30% elevated &nbsp;·&nbsp; &gt;30% high risk
             </p>""", unsafe_allow_html=True)
 
         with col_right:
             if feat:
-                st.markdown(f"<div class='ht-eyebrow' style='margin-bottom:12px'>HRV Metrics</div>",
-                            unsafe_allow_html=True)
-                m1,m2,m3,m4 = st.columns(4)
-                m1.metric("SDNN",    f"{safe_float(feat['sdnn'],1)} ms")
-                m2.metric("RMSSD",   f"{safe_float(feat['rmssd'],1)} ms")
-                m3.metric("pNN50",   f"{safe_float(feat['pnn50'],1)}%")
-                m4.metric("Mean RR", f"{safe_float(feat['mean_rr'],0)} ms")
-                m5,m6,m7,m8 = st.columns(4)
+                st.markdown("<div class='ht-eyebrow' style='margin-bottom: 12px;'>HRV METRICS</div>", unsafe_allow_html=True)
+                m1, m2, m3, m4 = st.columns(4)
+                m1.metric("SDNN",    f"{safe_float(feat['sdnn'], 1)} ms")
+                m2.metric("RMSSD",   f"{safe_float(feat['rmssd'], 1)} ms")
+                m3.metric("pNN50",   f"{safe_float(feat['pnn50'], 1)}%")
+                m4.metric("Mean RR", f"{safe_float(feat['mean_rr'], 0)} ms")
+
+                m5, m6, m7, m8 = st.columns(4)
                 pac = feat['pac_count']
                 m5.metric("PAC Count", str(pac),
                           delta="elevated" if pac > 3 else None,
                           delta_color="inverse")
-                m6.metric("LF/HF",  safe_float(feat['lf_hf_ratio'],2))
-                m7.metric("SampEn", safe_float(feat['sampen'],3))
-                m8.metric("SD1",    f"{safe_float(feat['sd1'],1)} ms")
+                m6.metric("LF/HF",  safe_float(feat['lf_hf_ratio'], 2))
+                m7.metric("SampEn", safe_float(feat['sampen'], 3))
+                m8.metric("SD1",    f"{safe_float(feat['sd1'], 1)} ms")
 
         st.divider()
 
-        # ── Bottom row ────────────────────────────────────────────────────────
-        st.markdown(f"<div class='ht-eyebrow'>MODEL EXPLAINABILITY &amp; SIGNAL DETAIL</div>",
-                    unsafe_allow_html=True)
+        # ── Bottom row: SHAP, Poincaré, RR series ────────────────────────────
+        st.markdown("<div class='ht-eyebrow'>MODEL EXPLAINABILITY & SIGNAL DETAIL</div>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns(3, gap="medium")
 
         with c1:
             if feat and risk is not None:
-                st.plotly_chart(plot_shap(feat, mdl, expl),
-                                use_container_width=True, config={"displayModeBar": False})
+                st.plotly_chart(
+                    plot_shap(feat, mdl, expl),
+                    use_container_width=True,
+                    config={"displayModeBar": False}
+                )
                 st.markdown(f"""
-                <p style='font-size:10px;color:{TEXT3};text-align:center;margin-top:-8px'>
+                <p style='font-size: 10px; color: {TEXT3}; text-align: center; margin-top: -8px;'>
                   🔴 Increases AFib risk &nbsp;·&nbsp; 🟢 Decreases risk
                 </p>""", unsafe_allow_html=True)
             else:
-                st.markdown(f"<div class='ht-card' style='height:300px;display:flex;"
-                            f"align-items:center;justify-content:center;color:{TEXT3};font-size:13px'>"
-                            f"Not enough beats for SHAP</div>", unsafe_allow_html=True)
+                st.markdown(f"""
+                <div class='ht-card' style='height: 300px; display: flex; align-items: center; justify-content: center; color: {TEXT3}; font-size: 13px;'>
+                  Not enough beats for SHAP
+                </div>""", unsafe_allow_html=True)
 
         with c2:
             rr = w["rr"]
             if len(rr) > 1:
-                st.plotly_chart(plot_poincare(rr, label_key),
-                                use_container_width=True, config={"displayModeBar": False})
+                st.plotly_chart(
+                    plot_poincare(rr, label_key),
+                    use_container_width=True,
+                    config={"displayModeBar": False}
+                )
                 st.markdown(f"""
-                <p style='font-size:10px;color:{TEXT3};text-align:center;margin-top:-8px'>
+                <p style='font-size: 10px; color: {TEXT3}; text-align: center; margin-top: -8px;'>
                   Tight cluster = regular &nbsp;·&nbsp; Scattered = irregular (AFib)
                 </p>""", unsafe_allow_html=True)
             else:
-                st.markdown(f"<div class='ht-card' style='height:240px;display:flex;"
-                            f"align-items:center;justify-content:center;color:{TEXT3};font-size:13px'>"
-                            f"Insufficient RR intervals</div>", unsafe_allow_html=True)
+                st.markdown(f"""
+                <div class='ht-card' style='height: 240px; display: flex; align-items: center; justify-content: center; color: {TEXT3}; font-size: 13px;'>
+                  Insufficient RR intervals
+                </div>""", unsafe_allow_html=True)
 
         with c3:
             if len(rr) > 0:
-                st.plotly_chart(plot_rr_series(rr, label_key),
-                                use_container_width=True, config={"displayModeBar": False})
+                st.plotly_chart(
+                    plot_rr_series(rr, label_key),
+                    use_container_width=True,
+                    config={"displayModeBar": False}
+                )
             else:
-                st.markdown(f"<div class='ht-card' style='height:240px;display:flex;"
-                            f"align-items:center;justify-content:center;color:{TEXT3};font-size:13px'>"
-                            f"No RR intervals detected</div>", unsafe_allow_html=True)
+                st.markdown(f"""
+                <div class='ht-card' style='height: 240px; display: flex; align-items: center; justify-content: center; color: {TEXT3}; font-size: 13px;'>
+                  No RR intervals detected
+                </div>""", unsafe_allow_html=True)
 
+        # ── Expandable guide ──────────────────────────────────────────────────
         with st.expander("ℹ️  What do these metrics mean?"):
             st.markdown(f"""
-            <div style='font-size:12.5px;line-height:1.85;color:{TEXT2}'>
-              <b style='color:{TEXT}'>SDNN / RMSSD / pNN50</b> — standard heart-rate variability
+            <div style='font-size: 12.5px; line-height: 1.85; color: {TEXT2};'>
+              <b style='color: {TEXT};'>SDNN / RMSSD / pNN50</b> — standard heart-rate variability
               measures. Low values can indicate reduced autonomic regulation, a known precursor
               to paroxysmal AFib episodes.<br>
-              <b style='color:{TEXT}'>PAC Count</b> — premature atrial contractions detected in
+              <b style='color: {TEXT};'>PAC Count</b> — premature atrial contractions detected in
               this window; frequent PACs are a common trigger for AFib onset.<br>
-              <b style='color:{TEXT}'>LF/HF Ratio</b> — sympathetic vs. parasympathetic balance
+              <b style='color: {TEXT};'>LF/HF Ratio</b> — sympathetic vs. parasympathetic balance
               from frequency-domain analysis.<br>
-              <b style='color:{TEXT}'>SampEn</b> — sample entropy; higher values reflect more
+              <b style='color: {TEXT};'>SampEn</b> — sample entropy; higher values reflect more
               irregular, less predictable rhythm.<br>
-              <b style='color:{TEXT}'>SHAP values</b> — show how much each feature pushed the
+              <b style='color: {TEXT};'>SHAP values</b> — show how much each feature pushed the
               model's prediction up (red) or down (green) for this specific window.
             </div>
             """, unsafe_allow_html=True)
 
-        # ── Auto-play ─────────────────────────────────────────────────────────
+        # ── Auto‑play loop ────────────────────────────────────────────────────
         if auto_play:
             time.sleep(play_speed)
             st.session_state["win_idx"] = (win_idx + 1) % n_win
@@ -821,12 +970,12 @@ def main():
     else:
         if not uploaded:
             st.markdown(f"""
-            <div class='ht-card' style='text-align:center;padding:48px;'>
-              <div style='font-size:32px;margin-bottom:12px'>📁</div>
-              <div style='font-size:15px;font-weight:600;color:{TEXT};margin-bottom:6px'>
+            <div class='ht-card' style='text-align: center; padding: 56px 32px;'>
+              <div style='font-size: 40px; margin-bottom: 16px;'>📁</div>
+              <div style='font-size: 16px; font-weight: 600; color: {TEXT}; margin-bottom: 8px;'>
                 Upload an RR interval CSV
               </div>
-              <div style='font-size:12px;color:{TEXT3}'>
+              <div style='font-size: 12px; color: {TEXT3};'>
                 One RR interval in milliseconds per line · Range 200–2000 ms
               </div>
             </div>
@@ -860,54 +1009,60 @@ def main():
 
         col_l, col_r = st.columns([1, 2], gap="large")
         with col_l:
-            st.plotly_chart(plot_gauge(risk), use_container_width=True,
-                            config={"displayModeBar": False})
+            st.plotly_chart(
+                plot_gauge(risk),
+                use_container_width=True,
+                config={"displayModeBar": False}
+            )
             cls = "risk-high" if risk >= THRESHOLD else "risk-medium" if risk >= 0.15 else "risk-low"
             icon = "⚠️" if risk >= THRESHOLD else "🟡" if risk >= 0.15 else "✅"
             label = "HIGH RISK — PAF Detected" if risk >= THRESHOLD else "ELEVATED" if risk >= 0.15 else "NORMAL"
             st.markdown(f"""
             <div class='risk-banner {cls}'>
               {icon} &nbsp; {label} &nbsp;
-              <span style='font-family:"JetBrains Mono",monospace'>{risk*100:.1f}%</span>
+              <span style='font-family: "JetBrains Mono", monospace;'>{risk*100:.1f}%</span>
             </div>""", unsafe_allow_html=True)
 
             st.markdown(f"""
-            <p style='font-size:10px;color:{TEXT3};text-align:center;margin-top:10px'>
-              Model-estimated probability of AFib in this recording &nbsp;·&nbsp;
+            <p style='font-size: 10px; color: {TEXT3}; text-align: center; margin-top: 10px;'>
+              Model‑estimated probability of AFib in this recording &nbsp;·&nbsp;
               &lt;15% normal &nbsp;·&nbsp; 15–30% elevated &nbsp;·&nbsp; &gt;30% high risk
             </p>""", unsafe_allow_html=True)
 
         with col_r:
-            st.markdown(f"<div class='ht-eyebrow' style='margin-bottom:12px'>HRV Metrics</div>",
-                        unsafe_allow_html=True)
-            m1,m2,m3,m4 = st.columns(4)
-            m1.metric("SDNN",    f"{safe_float(feat['sdnn'],1)} ms")
-            m2.metric("RMSSD",   f"{safe_float(feat['rmssd'],1)} ms")
-            m3.metric("pNN50",   f"{safe_float(feat['pnn50'],1)}%")
-            m4.metric("Mean RR", f"{safe_float(feat['mean_rr'],0)} ms")
+            st.markdown("<div class='ht-eyebrow' style='margin-bottom: 12px;'>HRV METRICS</div>", unsafe_allow_html=True)
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("SDNN",    f"{safe_float(feat['sdnn'], 1)} ms")
+            m2.metric("RMSSD",   f"{safe_float(feat['rmssd'], 1)} ms")
+            m3.metric("pNN50",   f"{safe_float(feat['pnn50'], 1)}%")
+            m4.metric("Mean RR", f"{safe_float(feat['mean_rr'], 0)} ms")
 
         st.divider()
         c1, c2, c3 = st.columns(3, gap="medium")
         with c1:
-            st.plotly_chart(plot_shap(feat, mdl, expl), use_container_width=True,
-                            config={"displayModeBar": False})
+            st.plotly_chart(
+                plot_shap(feat, mdl, expl),
+                use_container_width=True,
+                config={"displayModeBar": False}
+            )
         with c2:
-            st.plotly_chart(plot_poincare(rr, "unknown"), use_container_width=True,
-                            config={"displayModeBar": False})
+            st.plotly_chart(
+                plot_poincare(rr, "unknown"),
+                use_container_width=True,
+                config={"displayModeBar": False}
+            )
         with c3:
-            st.plotly_chart(plot_rr_series(rr, "unknown"), use_container_width=True,
-                            config={"displayModeBar": False})
+            st.plotly_chart(
+                plot_rr_series(rr, "unknown"),
+                use_container_width=True,
+                config={"displayModeBar": False}
+            )
 
     # ── Footer ────────────────────────────────────────────────────────────────
     st.markdown(f"""
-    <div style='margin-top:36px;padding-top:16px;border-top:1px solid {BORDER};
-         display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px'>
-      <span style='font-size:11px;color:{TEXT3}'>
-        🫀 HeartTrack AI &nbsp;·&nbsp; CatBoost + SHAP &nbsp;·&nbsp; PAFPDB reference dataset
-      </span>
-      <span style='font-size:11px;color:{TEXT3}'>
-        For research &amp; educational use only — not a diagnostic device. Always consult a clinician.
-      </span>
+    <div class='ht-footer'>
+      <span>🫀 HeartTrack AI · CatBoost + SHAP · PAFPDB reference dataset</span>
+      <span>For research &amp; educational use only — not a diagnostic device. Always consult a clinician.</span>
     </div>
     """, unsafe_allow_html=True)
 
