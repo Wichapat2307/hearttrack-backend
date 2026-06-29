@@ -49,6 +49,15 @@ st.markdown(f"""
   @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:wght@500;600;700&family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
   html, body, .stApp {{ background: {BG}; color: {TEXT}; font-family: 'Inter', sans-serif; }}
+
+  /* Prevent Streamlit's "stale content" dimming during reruns (e.g. auto-play) */
+  .stApp, .main, .block-container,
+  div[data-testid="stVerticalBlock"], div[data-testid="stHorizontalBlock"],
+  div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="element-container"],
+  .element-container, [data-stale="true"] {{
+    opacity: 1 !important;
+    transition: none !important;
+  }}
   section[data-testid="stSidebar"] {{
     background: {BG2}; border-right: 1px solid {BORDER};
     box-shadow: 2px 0 8px rgba(61,139,196,0.04);
@@ -79,21 +88,34 @@ st.markdown(f"""
     border-color: #b9d6ec;
     box-shadow: 0 4px 14px rgba(61,139,196,0.12);
   }}
-  div[data-testid="metric-container"] label {{
-    color: {TEXT3} !important;
+  div[data-testid="metric-container"] label,
+  div[data-testid="stMetric"] label,
+  div[data-testid="stMetricLabel"] {{
+    color: {TEXT2} !important;
     font-size: 10px !important;
     font-weight: 700 !important;
     letter-spacing: 0.08em !important;
     text-transform: uppercase !important;
+    opacity: 1 !important;
   }}
-  div[data-testid="metric-container"] [data-testid="stMetricValue"] {{
+  div[data-testid="metric-container"] [data-testid="stMetricValue"],
+  div[data-testid="stMetric"] [data-testid="stMetricValue"],
+  div[data-testid="stMetricValue"] {{
     color: {TEXT} !important;
     font-size: 22px !important;
     font-weight: 700 !important;
     font-family: 'JetBrains Mono', monospace !important;
+    opacity: 1 !important;
   }}
-  div[data-testid="metric-container"] [data-testid="stMetricDelta"] {{
+  div[data-testid="metric-container"] [data-testid="stMetricDelta"],
+  div[data-testid="stMetric"] [data-testid="stMetricDelta"],
+  div[data-testid="stMetricDelta"] {{
     font-size: 11px !important;
+    opacity: 1 !important;
+  }}
+  /* Catch-all: any text inside a metric tile should be fully opaque and dark */
+  div[data-testid="metric-container"] *, div[data-testid="stMetric"] * {{
+    opacity: 1 !important;
   }}
 
   /* Slider */
