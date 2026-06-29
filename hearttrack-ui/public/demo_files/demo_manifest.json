@@ -1,6 +1,7 @@
 [
   {
     "file": "/demo_files/test_control_1.csv",
+    "ecg_file": "/demo_files/test_control_1_ecg.json",
     "record": "t03",
     "window": "min 0\u20133",
     "label_key": "normal",
@@ -11,6 +12,7 @@
   },
   {
     "file": "/demo_files/test_control_2.csv",
+    "ecg_file": "/demo_files/test_control_2_ecg.json",
     "record": "t05",
     "window": "min 0\u20133",
     "label_key": "normal",
@@ -21,6 +23,7 @@
   },
   {
     "file": "/demo_files/test_control_3.csv",
+    "ecg_file": "/demo_files/test_control_3_ecg.json",
     "record": "t07",
     "window": "min 0\u20133",
     "label_key": "normal",
@@ -31,62 +34,68 @@
   },
   {
     "file": "/demo_files/test_paf_stable_1.csv",
+    "ecg_file": "/demo_files/test_paf_stable_1_ecg.json",
     "record": "t01",
     "window": "min 0\u20133",
     "label_key": "paf_distant",
     "badge": "PAF STABLE",
     "short": "Stable PAF #1  (t01, min 0\u20133)",
-    "description": "PAF patient \u2014 AF episode ~30 min away. Early recording, rhythm still relatively stable.",
+    "description": "PAF patient \u2014 AF episode ~30 min away. Rhythm still relatively stable.",
     "pair": "t02"
   },
   {
     "file": "/demo_files/test_paf_stable_2.csv",
+    "ecg_file": "/demo_files/test_paf_stable_2_ecg.json",
     "record": "t09",
     "window": "min 0\u20133",
     "label_key": "paf_distant",
     "badge": "PAF STABLE",
     "short": "Stable PAF #2  (t09, min 0\u20133)",
-    "description": "PAF patient \u2014 AF episode ~30 min away. Early recording, rhythm still relatively stable.",
+    "description": "PAF patient \u2014 AF episode ~30 min away. Rhythm still relatively stable.",
     "pair": "t10"
   },
   {
     "file": "/demo_files/test_paf_stable_3.csv",
+    "ecg_file": "/demo_files/test_paf_stable_3_ecg.json",
     "record": "t11",
     "window": "min 0\u20133",
     "label_key": "paf_distant",
     "badge": "PAF STABLE",
     "short": "Stable PAF #3  (t11, min 0\u20133)",
-    "description": "PAF patient \u2014 AF episode ~30 min away. Early recording, rhythm still relatively stable.",
+    "description": "PAF patient \u2014 AF episode ~30 min away. Rhythm still relatively stable.",
     "pair": "t12"
   },
   {
     "file": "/demo_files/test_paf_imminent_1.csv",
+    "ecg_file": "/demo_files/test_paf_imminent_1_ecg.json",
     "record": "t02",
     "window": "min 27\u201330",
     "label_key": "paf_imminent",
     "badge": "PAF IMMINENT",
     "short": "Imminent AFib #1  (t02, min 27\u201330)",
-    "description": "PAF patient \u2014 AF episode begins immediately after this window. Pair of Stable PAF #1 (t01).",
+    "description": "PAF patient \u2014 AF episode begins immediately after. Pair of Stable PAF #1.",
     "pair": "t01"
   },
   {
     "file": "/demo_files/test_paf_imminent_2.csv",
+    "ecg_file": "/demo_files/test_paf_imminent_2_ecg.json",
     "record": "t10",
     "window": "min 27\u201330",
     "label_key": "paf_imminent",
     "badge": "PAF IMMINENT",
     "short": "Imminent AFib #2  (t10, min 27\u201330)",
-    "description": "PAF patient \u2014 AF episode begins immediately after this window. Pair of Stable PAF #2 (t09).",
+    "description": "PAF patient \u2014 AF episode begins immediately after. Pair of Stable PAF #2.",
     "pair": "t09"
   },
   {
     "file": "/demo_files/test_paf_imminent_3.csv",
+    "ecg_file": "/demo_files/test_paf_imminent_3_ecg.json",
     "record": "t12",
     "window": "min 27\u201330",
     "label_key": "paf_imminent",
     "badge": "PAF IMMINENT",
     "short": "Imminent AFib #3  (t12, min 27\u201330)",
-    "description": "PAF patient \u2014 AF episode begins immediately after this window. Pair of Stable PAF #3 (t11).",
+    "description": "PAF patient \u2014 AF episode begins immediately after. Pair of Stable PAF #3.",
     "pair": "t11"
   }
 ]
