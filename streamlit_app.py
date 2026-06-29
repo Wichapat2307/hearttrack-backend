@@ -427,8 +427,14 @@ def load_ecg(record_name, start_min):
 def r_peaks(signal, fs):
     b, a   = butter(2, [5/(fs/2), 15/(fs/2)], btype='band')
     sq     = filtfilt(b, a, signal) ** 2
-    h      = np.mean(sq) + 0.5 * np.std(sq)
-    pk, _  = find_peaks(sq, distance=int(0.2*fs), height=h)
+    h = np.percentile(sq, 75)
+
+    pk, _ = find_peaks(
+        sq,
+        distance=int(0.25 * fs),
+        prominence=np.std(sq) * 0.3,
+        height=h
+    )
     return pk
 
 def ecg_to_rr(signal, fs):
@@ -475,7 +481,7 @@ def sliding_windows(signal, fs):
     while s + win <= len(signal):
         seg     = signal[s:s+win]
         rr, _   = ecg_to_rr(seg, fs)
-        feat    = features(rr) if len(rr) >= 10 else None
+        feat    = features(rr) if len(rr) >= 8 else None
         out.append({"start_sec": round(s/fs,1), "end_sec": round((s+win)/fs,1),
                     "start_idx": s, "end_idx": s+win, "rr": rr, "features": feat})
         s += stride
