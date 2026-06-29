@@ -983,4 +983,127 @@ def main():
             st.markdown(f"""
             <div style='font-size: 12.5px; line-height: 1.85; color: {TEXT2};'>
               <b style='color: {TEXT};'>SDNN / RMSSD / pNN50</b> — standard heart-rate variability
-              measures. Low values can indicate reduced
+              measures. Low values can indicate reduced autonomic regulation, a known precursor
+              to paroxysmal AFib episodes.<br>
+              <b style='color: {TEXT};'>PAC Count</b> — premature atrial contractions detected in
+              this window; frequent PACs are a common trigger for AFib onset.<br>
+              <b style='color: {TEXT};'>LF/HF Ratio</b> — sympathetic vs. parasympathetic balance
+              from frequency-domain analysis.<br>
+              <b style='color: {TEXT};'>SampEn</b> — sample entropy; higher values reflect more
+              irregular, less predictable rhythm.<br>
+              <b style='color: {TEXT};'>SHAP values</b> — show how much each feature pushed the
+              model's prediction up (red) or down (green) for this specific window.
+            </div>
+            """, unsafe_allow_html=True)
+
+        # ── Auto‑play loop ────────────────────────────────────────────────────
+        if auto_play:
+            time.sleep(play_speed)
+            st.session_state["win_idx"] = (win_idx + 1) % n_win
+            st.rerun()
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # UPLOAD CSV MODE
+    # ═══════════════════════════════════════════════════════════════════════════
+    else:
+        if not uploaded:
+            st.markdown(f"""
+            <div class='ht-card' style='text-align: center; padding: 56px 32px;'>
+              <div style='font-size: 40px; margin-bottom: 16px;'>📁</div>
+              <div style='font-size: 16px; font-weight: 600; color: {TEXT}; margin-bottom: 8px;'>
+                Upload an RR interval CSV
+              </div>
+              <div style='font-size: 12px; color: {TEXT3};'>
+                One RR interval in milliseconds per line · Range 200–2000 ms
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+            return
+
+        raw  = uploaded.read().decode()
+        vals = []
+        for line in raw.splitlines():
+            for x in line.split(','):
+                x = x.strip()
+                if x and not x.startswith('#') and x != 'rr_ms':
+                    try:
+                        v = float(x)
+                        if 200 <= v <= 2000:
+                            vals.append(v)
+                    except: pass
+        rr = np.array(vals)
+
+        if len(rr) < 10:
+            st.error(f"Only {len(rr)} valid intervals found (need ≥ 10, range 200–2000 ms).")
+            return
+
+        st.success(f"✓ Loaded {len(rr)} RR intervals from {uploaded.name}")
+        feat = features(rr)
+        if feat is None:
+            st.error("Feature extraction failed.")
+            return
+
+        risk = float(mdl.predict_proba(pd.DataFrame([feat]))[0][1])
+
+        col_l, col_r = st.columns([1, 2], gap="large")
+        with col_l:
+            st.plotly_chart(
+                plot_gauge(risk),
+                use_container_width=True,
+                config={"displayModeBar": False}
+            )
+            cls = "risk-high" if risk >= THRESHOLD else "risk-medium" if risk >= 0.15 else "risk-low"
+            icon = "⚠️" if risk >= THRESHOLD else "🟡" if risk >= 0.15 else "✅"
+            label = "HIGH RISK — PAF Detected" if risk >= THRESHOLD else "ELEVATED" if risk >= 0.15 else "NORMAL"
+            st.markdown(f"""
+            <div class='risk-banner {cls}'>
+              {icon} &nbsp; {label} &nbsp;
+              <span style='font-family: "JetBrains Mono", monospace;'>{risk*100:.1f}%</span>
+            </div>""", unsafe_allow_html=True)
+
+            st.markdown(f"""
+            <p style='font-size: 10px; color: {TEXT3}; text-align: center; margin-top: 10px;'>
+              Model‑estimated probability of AFib in this recording &nbsp;·&nbsp;
+              &lt;15% normal &nbsp;·&nbsp; 15–30% elevated &nbsp;·&nbsp; &gt;30% high risk
+            </p>""", unsafe_allow_html=True)
+
+        with col_r:
+            st.markdown("<div class='ht-eyebrow' style='margin-bottom: 12px;'>HRV METRICS</div>", unsafe_allow_html=True)
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("SDNN",    f"{safe_float(feat['sdnn'], 1)} ms")
+            m2.metric("RMSSD",   f"{safe_float(feat['rmssd'], 1)} ms")
+            m3.metric("pNN50",   f"{safe_float(feat['pnn50'], 1)}%")
+            m4.metric("Mean RR", f"{safe_float(feat['mean_rr'], 0)} ms")
+
+        st.divider()
+        c1, c2, c3 = st.columns(3, gap="medium")
+        with c1:
+            st.plotly_chart(
+                plot_shap(feat, mdl, expl),
+                use_container_width=True,
+                config={"displayModeBar": False}
+            )
+        with c2:
+            st.plotly_chart(
+                plot_poincare(rr, "unknown"),
+                use_container_width=True,
+                config={"displayModeBar": False}
+            )
+        with c3:
+            st.plotly_chart(
+                plot_rr_series(rr, "unknown"),
+                use_container_width=True,
+                config={"displayModeBar": False}
+            )
+
+    # ── Footer ────────────────────────────────────────────────────────────────
+    st.markdown(f"""
+    <div class='ht-footer'>
+      <span>🫀 HeartTrack AI · CatBoost + SHAP · PAFPDB reference dataset</span>
+      <span>For research &amp; educational use only — not a diagnostic device. Always consult a clinician.</span>
+    </div>
+    """, unsafe_allow_html=True)
+
+
+if __name__ == "__main__":
+    main()
