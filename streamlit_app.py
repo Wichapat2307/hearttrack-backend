@@ -354,9 +354,9 @@ st.markdown(f"""
 MODEL_PATH  = "models/catboost_afib_model.pkl"
 DB_PATH     = "PAFPDB"
 TARGET_FS   = 128
-WINDOW_SEC  = 20
-STRIDE_SEC  = 10
-SNIPPET_SEC = 30
+WINDOW_SEC  = 15
+STRIDE_SEC  = 1
+SNIPPET_SEC = 45
 THRESHOLD   = 0.3
 
 DEMO_RECORDS = {
@@ -438,7 +438,7 @@ def ecg_to_rr(signal, fs):
     return rr[(rr>=200)&(rr<=2000)], pk
 
 def features(rr):
-    if len(rr) < 10: return None
+    if len(rr) < 8: return None
     p, c    = rr[:-1], rr[1:]
     diff    = np.diff(rr)
     cum     = np.cumsum(rr/1000) - np.cumsum(rr/1000)[0]
