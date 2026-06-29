@@ -85,6 +85,15 @@ st.markdown(f"""
   }}
   section[data-testid="stSidebar"] * {{ color: {TEXT} !important; }}
 
+  /* Sidebar input fields – ensure visibility */
+  section[data-testid="stSidebar"] input {{
+    color: #1a2d3c !important;
+    background-color: #ffffff !important;
+    border: 1px solid #cde0ea !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+  }}
+
   /* Header */
   .stApp header {{ background: {BG} !important; }}
   .block-container {{
