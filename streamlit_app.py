@@ -354,8 +354,8 @@ st.markdown(f"""
 MODEL_PATH  = "models/catboost_afib_model.pkl"
 DB_PATH     = "PAFPDB"
 TARGET_FS   = 128
-WINDOW_SEC  = 10
-STRIDE_SEC  = 5
+WINDOW_SEC  = 20
+STRIDE_SEC  = 10
 SNIPPET_SEC = 30
 THRESHOLD   = 0.3
 
