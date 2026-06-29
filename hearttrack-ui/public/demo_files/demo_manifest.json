@@ -1,0 +1,101 @@
+[
+  {
+    "file": "/demo_files/demo_control_1.npy",
+    "record": "t03",
+    "fs": 128,
+    "duration_sec": 30,
+    "label_key": "normal",
+    "badge": "NORMAL",
+    "short": "Healthy Control #1 (t03)",
+    "description": "Healthy subject \u2014 no AF history.",
+    "pair": null
+  },
+  {
+    "file": "/demo_files/demo_control_2.npy",
+    "record": "t05",
+    "fs": 128,
+    "duration_sec": 30,
+    "label_key": "normal",
+    "badge": "NORMAL",
+    "short": "Healthy Control #2 (t05)",
+    "description": "Healthy subject \u2014 no AF history.",
+    "pair": null
+  },
+  {
+    "file": "/demo_files/demo_control_3.npy",
+    "record": "t07",
+    "fs": 128,
+    "duration_sec": 30,
+    "label_key": "normal",
+    "badge": "NORMAL",
+    "short": "Healthy Control #3 (t07)",
+    "description": "Healthy subject \u2014 no AF history.",
+    "pair": null
+  },
+  {
+    "file": "/demo_files/demo_paf_stable_1.npy",
+    "record": "t01",
+    "fs": 128,
+    "duration_sec": 30,
+    "label_key": "paf_distant",
+    "badge": "PAF STABLE",
+    "short": "Stable PAF #1 (t01, min 0)",
+    "description": "PAF patient \u2014 AF episode ~30 min away. Rhythm still stable.",
+    "pair": "t02"
+  },
+  {
+    "file": "/demo_files/demo_paf_stable_2.npy",
+    "record": "t09",
+    "fs": 128,
+    "duration_sec": 30,
+    "label_key": "paf_distant",
+    "badge": "PAF STABLE",
+    "short": "Stable PAF #2 (t09, min 0)",
+    "description": "PAF patient \u2014 AF episode ~30 min away. Rhythm still stable.",
+    "pair": "t10"
+  },
+  {
+    "file": "/demo_files/demo_paf_stable_3.npy",
+    "record": "t11",
+    "fs": 128,
+    "duration_sec": 30,
+    "label_key": "paf_distant",
+    "badge": "PAF STABLE",
+    "short": "Stable PAF #3 (t11, min 0)",
+    "description": "PAF patient \u2014 AF episode ~30 min away. Rhythm still stable.",
+    "pair": "t12"
+  },
+  {
+    "file": "/demo_files/demo_paf_imminent_1.npy",
+    "record": "t02",
+    "fs": 128,
+    "duration_sec": 30,
+    "label_key": "paf_imminent",
+    "badge": "PAF IMMINENT",
+    "short": "Imminent AFib #1 (t02, min 27)",
+    "description": "AF episode begins immediately after this window.",
+    "pair": "t01"
+  },
+  {
+    "file": "/demo_files/demo_paf_imminent_2.npy",
+    "record": "t10",
+    "fs": 128,
+    "duration_sec": 30,
+    "label_key": "paf_imminent",
+    "badge": "PAF IMMINENT",
+    "short": "Imminent AFib #2 (t10, min 27)",
+    "description": "AF episode begins immediately after this window.",
+    "pair": "t09"
+  },
+  {
+    "file": "/demo_files/demo_paf_imminent_3.npy",
+    "record": "t12",
+    "fs": 128,
+    "duration_sec": 30,
+    "label_key": "paf_imminent",
+    "badge": "PAF IMMINENT",
+    "short": "Imminent AFib #3 (t12, min 27)",
+    "description": "AF episode begins immediately after this window.",
+    "pair": "t11"
+  }
+]
