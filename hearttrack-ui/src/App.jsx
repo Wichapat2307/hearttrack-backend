@@ -1,526 +1,280 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  Activity, HeartPulse, AlertCircle, CheckCircle2,
-  UploadCloud, Wifi, WifiOff, Radio, FileText, ChevronDown,
-  Play, Pause, SkipBack
-} from 'lucide-react';
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine } from 'recharts';
+import React, { useState, useEffect, useRef } from 'react';
+import { Heart, Activity, AlertCircle, CheckCircle, FileText, Zap, ShieldCheck, ShieldAlert, ChevronDown, HeartPulse } from 'lucide-react';
+import { LineChart, Line, YAxis, ResponsiveContainer } from 'recharts';
 
-const API_URL = "https://hearttrack-backend.onrender.com";
-const WS_URL  = API_URL.replace(/^http/, "ws") + "/ws/ecg";
-
-const RISK_CONFIG = {
-  normal:       { color: '#22c55e', bg: '#052e16', border: '#14532d', text: '#86efac', badgeBg: '#14532d' },
-  paf_distant:  { color: '#f59e0b', bg: '#451a03', border: '#78350f', text: '#fcd34d', badgeBg: '#78350f' },
-  paf_imminent: { color: '#ef4444', bg: '#450a0a', border: '#7f1d1d', text: '#fca5a5', badgeBg: '#7f1d1d' },
-  unknown:      { color: '#71717a', bg: '#18181b', border: '#27272a', text: '#a1a1aa', badgeBg: '#27272a' },
-};
-
-function Badge({ label, labelKey }) {
-  const c = RISK_CONFIG[labelKey] || RISK_CONFIG.unknown;
-  return <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: c.badgeBg, color: c.text, whiteSpace: 'nowrap' }}>{label}</span>;
-}
-
-function MetricCard({ label, value, unit, highlight }) {
-  return (
-    <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 10, padding: '14px 16px' }}>
-      <div style={{ fontSize: 11, color: '#71717a', marginBottom: 4, letterSpacing: '0.05em', textTransform: 'uppercase' }}>{label}</div>
-      <div style={{ fontSize: 20, fontWeight: 700, color: highlight || '#f4f4f5' }}>
-        {value} <span style={{ fontSize: 12, fontWeight: 400, color: '#52525b' }}>{unit}</span>
-      </div>
-    </div>
-  );
-}
-
-function RiskGauge({ probability }) {
-  const pct   = Math.round((probability ?? 0) * 100);
-  const color = pct >= 30 ? '#ef4444' : pct >= 15 ? '#f59e0b' : '#22c55e';
-  const angle = -90 + (pct / 100) * 180;
-  return (
-    <svg viewBox="0 0 180 100" width="180" height="100">
-      <path d="M 16 90 A 72 72 0 0 1 164 90" fill="none" stroke="#27272a" strokeWidth="16" strokeLinecap="round" />
-      <path d="M 16 90 A 72 72 0 0 1 164 90" fill="none" stroke={color} strokeWidth="16" strokeLinecap="round"
-        strokeDasharray={`${pct * 2.26} 226`} style={{ transition: 'all 0.5s ease' }} />
-      <line x1="90" y1="90"
-        x2={90 + 58 * Math.cos((angle - 180) * Math.PI / 180)}
-        y2={90 + 58 * Math.sin((angle - 180) * Math.PI / 180)}
-        stroke={color} strokeWidth="2.5" strokeLinecap="round" style={{ transition: 'all 0.5s ease' }} />
-      <circle cx="90" cy="90" r="5" fill={color} />
-      <text x="90" y="74" textAnchor="middle" fill={color} fontSize="22" fontWeight="700">{pct}%</text>
-      <text x="90" y="88" textAnchor="middle" fill="#71717a" fontSize="9">AFib Risk</text>
-    </svg>
-  );
-}
-
-// ─── ANIMATED ECG CANVAS WITH SLIDING WINDOW ──────────────────────────────────
-function ECGViewer({ signal, fsDs, rPeaks, windows, currentWindowIdx, labelKey }) {
-  const canvasRef = useRef(null);
-  const cfg = RISK_CONFIG[labelKey] || RISK_CONFIG.unknown;
-
-  useEffect(() => {
-    if (!signal?.length || !canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const ctx    = canvas.getContext('2d');
-    const W      = canvas.width;
-    const H      = canvas.height;
-
-    ctx.clearRect(0, 0, W, H);
-
-    // ECG paper grid
-    const gx = W / 50;
-    const gy = H / 10;
-    ctx.lineWidth = 0.4;
-    ctx.strokeStyle = '#1a2332';
-    for (let x = 0; x <= W; x += gx) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-    for (let y = 0; y <= H; y += gy) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-    ctx.lineWidth = 0.8;
-    ctx.strokeStyle = '#1e3048';
-    for (let x = 0; x <= W; x += gx * 5) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke(); }
-    for (let y = 0; y <= H; y += gy * 5) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke(); }
-
-    const n   = signal.length;
-    const pad = H * 0.12;
-    const toX = (i) => (i / (n - 1)) * W;
-    const toY = (v) => pad + ((1 - (v + 1) / 2)) * (H - pad * 2);
-
-    // Sliding window highlight
-    if (windows?.length && currentWindowIdx != null) {
-      const win = windows[currentWindowIdx];
-      if (win) {
-        const x1  = toX(win.start_sample);
-        const x2  = toX(win.end_sample);
-        const risk = win.risk_probability;
-        const hlColor = risk == null ? '#3b3b3b'
-          : risk >= 0.3 ? 'rgba(239,68,68,0.12)'
-          : risk >= 0.15 ? 'rgba(245,158,11,0.12)'
-          : 'rgba(34,197,94,0.10)';
-        const borderColor = risk == null ? '#444'
-          : risk >= 0.3 ? '#ef4444'
-          : risk >= 0.15 ? '#f59e0b'
-          : '#22c55e';
-
-        ctx.fillStyle = hlColor;
-        ctx.fillRect(x1, 0, x2 - x1, H);
-        ctx.strokeStyle = borderColor;
-        ctx.lineWidth = 1.5;
-        ctx.setLineDash([4, 3]);
-        ctx.beginPath(); ctx.moveTo(x1, 0); ctx.lineTo(x1, H); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(x2, 0); ctx.lineTo(x2, H); ctx.stroke();
-        ctx.setLineDash([]);
-
-        // Window label
-        if (risk != null) {
-          ctx.fillStyle = borderColor;
-          ctx.font = 'bold 11px monospace';
-          ctx.fillText(`${(risk * 100).toFixed(0)}%`, x1 + 4, 14);
-        }
-      }
-    }
-
-    // ECG signal line
-    ctx.beginPath();
-    ctx.strokeStyle = cfg.color;
-    ctx.lineWidth   = 1.4;
-    ctx.shadowColor = cfg.color;
-    ctx.shadowBlur  = 3;
-    signal.forEach((v, i) => {
-      const x = toX(i);
-      const y = toY(v);
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-
-    // R-peak markers
-    if (rPeaks?.length) {
-      ctx.fillStyle = '#facc15';
-      rPeaks.forEach(pi => {
-        if (pi < signal.length) {
-          ctx.beginPath();
-          ctx.arc(toX(pi), toY(signal[pi]), 2.5, 0, Math.PI * 2);
-          ctx.fill();
-        }
-      });
-    }
-
-    // Time axis labels
-    const durSec = n / fsDs;
-    ctx.fillStyle = '#52525b';
-    ctx.font      = '9px monospace';
-    ctx.shadowBlur = 0;
-    for (let t = 0; t <= durSec; t += 5) {
-      const x = (t / durSec) * W;
-      ctx.fillText(`${t}s`, x + 2, H - 3);
-    }
-
-  }, [signal, rPeaks, windows, currentWindowIdx, labelKey]);
-
-  return (
-    <div style={{ background: '#060d18', border: `1px solid ${cfg.border}`, borderRadius: 10, overflow: 'hidden' }}>
-      <canvas ref={canvasRef} width={780} height={190}
-        style={{ width: '100%', height: 190, display: 'block' }} />
-    </div>
-  );
-}
-
-// ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
-  const [mode, setMode]       = useState('demo');  // 'demo' | 'upload' | 'live'
-  const [error, setError]     = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+  const [activeDemo, setActiveDemo] = useState(null);
+  
+  // State for the "Live" animated plot
+  const [livePlotData, setLivePlotData] = useState([]);
+  const fullPlotBuffer = useRef([]);
+  const animationRef = useRef(null);
 
-  // Demo state
-  const [demoFiles, setDemoFiles]     = useState([]);
-  const [selectedDemo, setSelectedDemo] = useState(null);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [analyzing, setAnalyzing]     = useState(false);
-  const [ecgResult, setEcgResult]     = useState(null);   // full /analyze_ecg response
-  const [currentWin, setCurrentWin]   = useState(0);
-  const [playing, setPlaying]         = useState(false);
-  const playRef = useRef(null);
-
-  // Upload state
-  const [rrData, setRrData]     = useState([]);
-  const [fileName, setFileName] = useState('');
-  const [loading, setLoading]   = useState(false);
-  const [batchResult, setBatchResult] = useState(null);
-
-  // Live state
-  const [wsConnected, setWsConnected] = useState(false);
-  const [liveRR, setLiveRR]     = useState([]);
-  const [liveHR, setLiveHR]     = useState(null);
-  const [liveResult, setLiveResult] = useState(null);
-  const [bufferSize, setBufferSize] = useState(0);
-  const wsRef    = useRef(null);
-  const liveIdx  = useRef(0);
-
+  // Stop animation if we load a new file
   useEffect(() => {
-    fetch('/demo_files/demo_manifest.json')
-      .then(r => r.json()).then(setDemoFiles).catch(() => setDemoFiles([]));
+    return () => clearInterval(animationRef.current);
   }, []);
 
-  // Sliding window animation
-  useEffect(() => {
-    if (playing && ecgResult?.windows?.length) {
-      playRef.current = setInterval(() => {
-        setCurrentWin(w => {
-          if (w >= ecgResult.windows.length - 1) { setPlaying(false); return w; }
-          return w + 1;
-        });
-      }, 800);
-    } else {
-      clearInterval(playRef.current);
-    }
-    return () => clearInterval(playRef.current);
-  }, [playing, ecgResult]);
-
-  // Load and analyze demo NPY
-  const handleDemoSelect = async (demo) => {
-    setShowDropdown(false);
-    setSelectedDemo(demo);
-    setEcgResult(null);
-    setCurrentWin(0);
-    setPlaying(false);
+  const loadDemoFile = async (fileName, title) => {
+    setActiveDemo(title);
+    setLoading(true);
     setError(null);
-    setAnalyzing(true);
+    setResult(null);
+    setLivePlotData([]);
+    clearInterval(animationRef.current);
 
     try {
-      const npyRes = await fetch(demo.file);
-      const npyBlob = await npyRes.blob();
-      const formData = new FormData();
-      formData.append('file', new File([npyBlob], 'ecg.npy', { type: 'application/octet-stream' }));
-      formData.append('fs', demo.fs.toString());
-      formData.append('window_sec', '10');
-      formData.append('stride_sec', '5');
+      // 1. Fetch the binary .npy file from the public folder
+      const fileResponse = await fetch(`/demo_files/${fileName}`);
+      if (!fileResponse.ok) throw new Error("Demo file not found. Did you run the extraction script?");
+      const blob = await fileResponse.blob();
 
-      const res  = await fetch(`${API_URL}/analyze_ecg`, { method: 'POST', body: formData });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || 'Server error');
-      const data = await res.json();
-      setEcgResult(data);
-      setCurrentWin(0);
-    } catch (e) {
-      setError(e.message);
+      // 2. Wrap it as a FormData upload for FastAPI
+      const formData = new FormData();
+      formData.append("file", blob, fileName);
+
+      // 3. Send to Backend
+      const apiResponse = await fetch("http://127.0.0.1:8000/analyze_ecg", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!apiResponse.ok) throw new Error("Backend processing failed.");
+      
+      const data = await apiResponse.json();
+      setResult(data);
+      
+      // 4. Start the "Live Monitor" Animation
+      if (data.live_plot_data) {
+        fullPlotBuffer.current = data.live_plot_data;
+        let index = 0;
+        const speed = 2; // Add points per tick
+        
+        animationRef.current = setInterval(() => {
+          setLivePlotData(prev => {
+            const nextPoints = fullPlotBuffer.current.slice(index, index + speed).map(val => ({ v: val }));
+            index += speed;
+            
+            // Loop the animation if we reach the end of the snippet
+            if (index >= fullPlotBuffer.current.length) {
+              index = 0; 
+            }
+            
+            // Keep a rolling window of 150 points on screen
+            const newArray = [...prev, ...nextPoints];
+            if (newArray.length > 150) return newArray.slice(newArray.length - 150);
+            return newArray;
+          });
+        }, 30); // 30ms refresh rate for smooth sweeping
+      }
+
+    } catch (err) {
+      setError(err.message);
     } finally {
-      setAnalyzing(false);
+      setLoading(false);
     }
   };
-
-  // Upload CSV batch
-  const handleFile = (file) => {
-    if (!file) return;
-    setFileName(file.name);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const vals = e.target.result.split(/[\n,]+/).map(Number).filter(n => !isNaN(n) && n > 0);
-      setRrData(vals); setBatchResult(null); setError(null);
-    };
-    reader.readAsText(file);
-  };
-
-  const analyzeCSV = async () => {
-    if (!rrData.length) return;
-    setLoading(true); setError(null);
-    try {
-      const res = await fetch(`${API_URL}/predict`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rr_intervals: rrData }),
-      });
-      if (!res.ok) throw new Error((await res.json().catch(()=>({}))).detail || 'Error');
-      setBatchResult(await res.json());
-    } catch (e) { setError(e.message); }
-    finally { setLoading(false); }
-  };
-
-  // WebSocket
-  const connectWS = useCallback(() => {
-    if (wsRef.current) wsRef.current.close();
-    const ws = new WebSocket(WS_URL);
-    ws.onopen  = () => setWsConnected(true);
-    ws.onclose = () => { setWsConnected(false); wsRef.current = null; };
-    ws.onerror = () => setError('WebSocket failed.');
-    ws.onmessage = ({ data }) => {
-      try {
-        const msg = JSON.parse(data);
-        if (msg.type === 'rr_echo') { setLiveHR(msg.hr); setBufferSize(msg.buffer_size); setLiveRR(p => [...p, { i: liveIdx.current++, rr: msg.value }].slice(-80)); }
-        if (msg.type === 'analysis') { setLiveResult(msg); setError(null); }
-        if (msg.type === 'error')    setError(msg.message);
-      } catch (_) {}
-    };
-    wsRef.current = ws;
-  }, []);
-
-  const disconnectWS = useCallback(() => {
-    wsRef.current?.close();
-    setWsConnected(false); setLiveRR([]); setLiveHR(null); setLiveResult(null); setBufferSize(0);
-  }, []);
-
-  useEffect(() => () => wsRef.current?.close(), []);
-
-  // Current window data for display
-  const currentWinData  = ecgResult?.windows?.[currentWin];
-  const activeResult    = mode === 'demo' ? currentWinData : mode === 'live' ? liveResult : batchResult;
-  const isAfib          = activeResult?.is_afib_imminent;
-  const riskProb        = activeResult?.risk_probability;
-  const resultCfg       = isAfib ? RISK_CONFIG.paf_imminent : RISK_CONFIG.normal;
-
-  const demoGroups = demoFiles.reduce((acc, d) => { (acc[d.label_key] = acc[d.label_key] || []).push(d); return acc; }, {});
-  const GROUP_ORDER  = ['normal', 'paf_distant', 'paf_imminent'];
-  const GROUP_LABELS = { normal: '🟢 Healthy Control', paf_distant: '🟡 PAF Stable', paf_imminent: '🔴 PAF Imminent' };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#09090b', color: '#f4f4f5', fontFamily: "'Inter', system-ui, sans-serif", paddingBottom: 60 }}>
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans p-4 sm:p-8">
+      <div className="max-w-6xl mx-auto space-y-6">
+        
+        {/* HEADER */}
+        <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between bg-white p-5 rounded-2xl shadow-sm border border-slate-200">
+          <div className="flex items-center space-x-4 mb-4 sm:mb-0">
+            <div className="bg-rose-50 p-3 rounded-xl">
+              <Activity className="w-8 h-8 text-rose-500" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 tracking-tight">HeartTrack E2E</h1>
+              <p className="text-sm text-slate-500 font-medium">Raw ECG Signal Processing & AI Diagnosis</p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2 px-4 py-2 bg-emerald-50 text-emerald-700 rounded-full text-sm font-semibold border border-emerald-100 shadow-sm">
+            <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse" />
+            <span>Signal API Online</span>
+          </div>
+        </header>
 
-      {/* HEADER */}
-      <header style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 28px', borderBottom: '1px solid #18181b', position: 'sticky', top: 0, background: '#09090b', zIndex: 10 }}>
-        <Activity size={24} color="#e11d48" />
-        <span style={{ fontWeight: 700, fontSize: 17, letterSpacing: '-0.02em' }}>HeartTrack AI</span>
-        <span style={{ fontSize: 10, fontWeight: 600, color: '#71717a', padding: '2px 8px', border: '1px solid #27272a', borderRadius: 4 }}>Clinical Dashboard</span>
-        {mode === 'live' && wsConnected && (
-          <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 600, color: '#4ade80' }}>
-            <Radio size={13} style={{ animation: 'pulse 1.5s infinite' }} /> LIVE · {bufferSize} RR
-          </span>
-        )}
-      </header>
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          
+          {/* LEFT PANEL: DEMO SELECTOR */}
+          <div className="lg:col-span-1 space-y-6">
+            <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+              <h2 className="text-sm font-bold text-slate-900 mb-4 flex items-center uppercase tracking-wider">
+                <FileText className="w-4 h-4 mr-2 text-slate-400" />
+                Select Patient (.npy)
+              </h2>
+              
+              <div className="space-y-6">
+                
+                {/* Healthy Group */}
+                <div>
+                  <div className="text-xs font-bold text-emerald-600 mb-2">🟢 HEALTHY CONTROLS</div>
+                  <div className="space-y-2">
+                    <button onClick={() => loadDemoFile('t03_healthy_control.npy', 'Control Patient t03')} className="w-full text-left px-3 py-2 text-sm bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition">Patient t03 (0-3m)</button>
+                  </div>
+                </div>
 
-      <div style={{ maxWidth: 860, margin: '0 auto', padding: '24px 20px' }}>
+                {/* Stable Group */}
+                <div>
+                  <div className="text-xs font-bold text-amber-600 mb-2">🟡 STABLE PAF BASELINE</div>
+                  <div className="space-y-2">
+                    <button onClick={() => loadDemoFile('t01_paf_baseline.npy', 'Stable PAF t01')} className="w-full text-left px-3 py-2 text-sm bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg transition">Patient t01 (0-3m)</button>
+                  </div>
+                </div>
 
-        {/* TABS */}
-        <div style={{ display: 'flex', background: '#18181b', borderRadius: 10, padding: 4, marginBottom: 24 }}>
-          {[{ key: 'demo', label: 'Demo Files' }, { key: 'upload', label: 'Upload CSV' }, { key: 'live', label: 'Live ESP32' }].map(({ key, label }) => (
-            <button key={key} onClick={() => { setMode(key); setError(null); }} style={{
-              flex: 1, padding: '9px 0', borderRadius: 7, border: 'none', cursor: 'pointer',
-              fontSize: 13, fontWeight: 600,
-              background: mode === key ? '#e11d48' : 'transparent',
-              color: mode === key ? '#fff' : '#71717a', transition: 'all 0.2s',
-            }}>{label}</button>
-          ))}
-        </div>
+                {/* Critical Group */}
+                <div>
+                  <div className="text-xs font-bold text-rose-600 mb-2">🔴 IMMINENT AFIB EPISODE</div>
+                  <div className="space-y-2">
+                    <button onClick={() => loadDemoFile('t02_paf_imminent.npy', 'Imminent Attack t02')} className="w-full text-left px-3 py-2 text-sm bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-900 rounded-lg transition font-medium shadow-sm">Patient t02 (27-30m)</button>
+                  </div>
+                </div>
 
-        {/* ── DEMO MODE ── */}
-        {mode === 'demo' && (<>
-          {/* Demo picker dropdown */}
-          <div style={{ position: 'relative', marginBottom: 16 }}>
-            <button onClick={() => setShowDropdown(v => !v)} style={{
-              display: 'flex', alignItems: 'center', gap: 8, width: '100%',
-              background: '#18181b', border: '1px solid #27272a', borderRadius: 8,
-              color: '#a1a1aa', padding: '11px 16px', cursor: 'pointer', fontSize: 14,
-            }}>
-              <FileText size={15} />
-              <span>{selectedDemo ? `${selectedDemo.short}` : 'Select a demo recording from PAFPDB'}</span>
-              <ChevronDown size={14} style={{ marginLeft: 'auto', transform: showDropdown ? 'rotate(180deg)' : '', transition: '0.2s' }} />
-            </button>
+              </div>
 
-            {showDropdown && (
-              <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 30, background: '#18181b', border: '1px solid #27272a', borderRadius: 8, marginTop: 4, maxHeight: 300, overflowY: 'auto' }}>
-                {demoFiles.length === 0
-                  ? <div style={{ padding: 16, color: '#71717a', fontSize: 13 }}>Run <code style={{ background: '#27272a', padding: '1px 5px', borderRadius: 3 }}>python extract_demo_npy.py</code> first.</div>
-                  : GROUP_ORDER.filter(g => demoGroups[g]).map(g => (
-                    <div key={g}>
-                      <div style={{ padding: '7px 16px', fontSize: 10, fontWeight: 700, color: '#52525b', borderBottom: '1px solid #27272a', letterSpacing: '0.06em', textTransform: 'uppercase' }}>{GROUP_LABELS[g]}</div>
-                      {demoGroups[g].map(d => (
-                        <button key={d.file} onClick={() => handleDemoSelect(d)} style={{ display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left', padding: '10px 16px', background: 'transparent', border: 'none', cursor: 'pointer', color: '#f4f4f5', borderBottom: '1px solid #27272a', fontSize: 13 }}>
-                          <Badge label={d.badge} labelKey={d.label_key} />
-                          <div>
-                            <div style={{ fontWeight: 600 }}>{d.short}</div>
-                            <div style={{ fontSize: 11, color: '#71717a', marginTop: 1 }}>{d.description}</div>
-                          </div>
-                        </button>
-                      ))}
+              {loading && (
+                <div className="mt-6 p-4 bg-slate-800 rounded-xl text-center">
+                  <Activity className="w-6 h-6 text-emerald-400 animate-spin mx-auto mb-2"/>
+                  <span className="text-xs font-semibold text-slate-200">Extracting HRV & Computing Risk...</span>
+                </div>
+              )}
+
+              {error && (
+                <div className="mt-4 p-3 bg-red-50 text-red-600 text-sm rounded-xl border border-red-200 flex items-start">
+                  <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
+                  <p>{error}</p>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* RIGHT PANEL: DASHBOARD */}
+          <div className="lg:col-span-3">
+            {result ? (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                
+                {/* 1. LIVE ECG MONITOR */}
+                <div className="bg-[#0a0a0a] rounded-2xl shadow-xl border border-slate-800 overflow-hidden relative">
+                   <div className="absolute top-4 left-4 z-10 flex items-center space-x-3">
+                      <HeartPulse className="text-emerald-400 w-5 h-5" />
+                      <span className="text-emerald-400 font-mono text-sm tracking-widest">{activeDemo} - LEAD I</span>
+                   </div>
+                   
+                   <div className="h-48 w-full pt-10">
+                     <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={livePlotData}>
+                           <YAxis domain={['auto', 'auto']} hide={true} />
+                           {/* The glowing ECG trace */}
+                           <Line 
+                             type="monotone" 
+                             dataKey="v" 
+                             stroke="#10b981" 
+                             strokeWidth={2} 
+                             dot={false} 
+                             isAnimationActive={false} // Custom animation handles motion
+                             style={{ filter: 'drop-shadow(0px 0px 4px rgba(16, 185, 129, 0.5))' }}
+                           />
+                        </LineChart>
+                     </ResponsiveContainer>
+                   </div>
+                   
+                   {/* Monitor Grid Overlay */}
+                   <div className="absolute inset-0 pointer-events-none opacity-20" style={{ backgroundImage: 'linear-gradient(#22c55e 1px, transparent 1px), linear-gradient(90deg, #22c55e 1px, transparent 1px)', backgroundSize: '20px 20px' }}></div>
+                </div>
+
+                {/* 2. PRIMARY DIAGNOSIS CARD */}
+                <div className={`p-6 sm:p-8 rounded-2xl shadow-sm border ${result.is_afib_imminent ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                  <div className="flex items-start sm:items-center space-x-4">
+                    {result.is_afib_imminent ? (
+                      <div className="bg-rose-100 p-4 rounded-full">
+                        <ShieldAlert className="w-10 h-10 text-rose-600" />
+                      </div>
+                    ) : (
+                      <div className="bg-emerald-100 p-4 rounded-full">
+                        <ShieldCheck className="w-10 h-10 text-emerald-600" />
+                      </div>
+                    )}
+                    
+                    <div className="flex-1">
+                      <h2 className={`text-2xl font-bold ${result.is_afib_imminent ? 'text-rose-700' : 'text-emerald-700'}`}>
+                        {result.is_afib_imminent ? 'High Risk: AFib Imminent' : 'Normal Sinus Rhythm'}
+                      </h2>
+                      <p className={`text-sm mt-1 font-medium ${result.is_afib_imminent ? 'text-rose-600/80' : 'text-emerald-600/80'}`}>
+                        {result.is_afib_imminent 
+                          ? 'CatBoost detected critical ectopic triggers within chaotic HRV environment.' 
+                          : 'No critical triggers detected. Heart rate variability is within safe parameters.'}
+                      </p>
                     </div>
-                  ))}
+
+                    <div className="hidden sm:block text-right">
+                       <div className={`text-4xl font-black ${result.is_afib_imminent ? 'text-rose-600' : 'text-emerald-600'}`}>
+                         {(result.risk_probability * 100).toFixed(1)}%
+                       </div>
+                       <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mt-1">Confidence Score</div>
+                    </div>
+                  </div>
+                  
+                  {/* Progress Bar */}
+                  <div className="mt-8 relative">
+                     <div className="h-3 w-full bg-slate-200/50 rounded-full overflow-hidden">
+                        <div 
+                          className={`h-full rounded-full transition-all duration-1000 ${result.is_afib_imminent ? 'bg-gradient-to-r from-rose-400 to-rose-600' : 'bg-gradient-to-r from-emerald-400 to-emerald-600'}`}
+                          style={{ width: `${result.risk_probability * 100}%` }}
+                        />
+                     </div>
+                     <div 
+                        className="absolute top-4 w-0.5 h-4 bg-slate-800 z-10 flex flex-col items-center"
+                        style={{ left: `${result.clinical_threshold * 100}%` }}
+                     >
+                        <span className="text-[10px] font-bold text-slate-600 mt-2 bg-white px-2 py-0.5 shadow-sm rounded-full border border-slate-200">Threshold ({result.clinical_threshold})</span>
+                     </div>
+                  </div>
+                </div>
+
+                {/* 3. BIOMETRICS GRID */}
+                <h3 className="text-sm font-bold text-slate-400 px-1 pt-2 uppercase tracking-widest">Extracted Clinical Biometrics</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  <div className={`p-4 rounded-xl border shadow-sm ${result.biometrics.pac_count > 3 ? 'bg-rose-50 border-rose-100' : 'bg-white border-slate-100'}`}>
+                    <p className="text-xs font-bold text-slate-400 uppercase mb-1">PAC Count (Sparks)</p>
+                    <p className={`text-2xl font-black ${result.biometrics.pac_count > 3 ? 'text-rose-700' : 'text-slate-900'}`}>{result.biometrics.pac_count}</p>
+                    <p className="text-[10px] font-semibold text-slate-500 mt-1 uppercase">Ectopic triggers</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                    <p className="text-xs font-bold text-slate-400 uppercase mb-1">RMSSD (Stress)</p>
+                    <p className="text-2xl font-black text-slate-900">{result.biometrics.rmssd.toFixed(1)} <span className="text-sm font-normal text-slate-400">ms</span></p>
+                    <p className="text-[10px] font-semibold text-slate-500 mt-1 uppercase">Beat variance</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                    <p className="text-xs font-bold text-slate-400 uppercase mb-1">Entropy (Chaos)</p>
+                    <p className="text-2xl font-black text-slate-900">{result.biometrics.sampen.toFixed(2)}</p>
+                    <p className="text-[10px] font-semibold text-slate-500 mt-1 uppercase">Unpredictability</p>
+                  </div>
+                  <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm">
+                    <p className="text-xs font-bold text-slate-400 uppercase mb-1">LF/HF Ratio</p>
+                    <p className="text-2xl font-black text-slate-900">{result.biometrics.lf_hf_ratio.toFixed(2)}</p>
+                    <p className="text-[10px] font-semibold text-slate-500 mt-1 uppercase">Sympathetic tone</p>
+                  </div>
+                </div>
+
+              </div>
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center p-12 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50 text-center">
+                <Activity className="w-16 h-16 text-slate-300 mb-4" />
+                <h3 className="text-xl font-bold text-slate-700">Awaiting Signal Analysis</h3>
+                <p className="text-slate-500 mt-2 max-w-sm">
+                  Select a clinical window from the left panel. The backend will perform QRS-detection, HRV extraction, and CatBoost prediction.
+                </p>
               </div>
             )}
           </div>
 
-          {/* Analyzing spinner */}
-          {analyzing && (
-            <div style={{ textAlign: 'center', padding: '32px 0', color: '#71717a', fontSize: 14 }}>
-              <HeartPulse size={28} color="#e11d48" style={{ display: 'block', margin: '0 auto 12px', animation: 'pulse 1s infinite' }} />
-              Uploading ECG to backend & running sliding window analysis…
-            </div>
-          )}
-
-          {/* ECG viewer + controls */}
-          {ecgResult && selectedDemo && (<>
-            <ECGViewer
-              signal={ecgResult.signal}
-              fsDs={ecgResult.fs_ds}
-              rPeaks={ecgResult.r_peaks}
-              windows={ecgResult.windows}
-              currentWindowIdx={currentWin}
-              labelKey={selectedDemo.label_key}
-            />
-
-            {/* Playback controls */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 10, marginBottom: 20 }}>
-              <button onClick={() => { setCurrentWin(0); setPlaying(false); }} style={{ background: '#27272a', border: 'none', borderRadius: 6, padding: '7px 12px', cursor: 'pointer', color: '#a1a1aa' }}>
-                <SkipBack size={15} />
-              </button>
-              <button onClick={() => setPlaying(p => !p)} style={{ background: playing ? '#7f1d1d' : '#e11d48', border: 'none', borderRadius: 6, padding: '7px 16px', cursor: 'pointer', color: '#fff', fontWeight: 600, fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
-                {playing ? <><Pause size={14}/> Pause</> : <><Play size={14}/> Play Windows</>}
-              </button>
-
-              {/* Window scrubber */}
-              <input type="range" min={0} max={ecgResult.windows.length - 1} value={currentWin}
-                onChange={e => { setCurrentWin(Number(e.target.value)); setPlaying(false); }}
-                style={{ flex: 1, accentColor: '#e11d48' }} />
-
-              <span style={{ fontSize: 12, color: '#71717a', whiteSpace: 'nowrap' }}>
-                Window {currentWin + 1} / {ecgResult.windows.length}
-                {currentWinData && <> · {currentWinData.start_sec}s–{currentWinData.end_sec}s</>}
-              </span>
-            </div>
-          </>)}
-        </>)}
-
-        {/* ── UPLOAD MODE ── */}
-        {mode === 'upload' && (<>
-          <label style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '2rem', background: '#18181b', border: '2px dashed #27272a', borderRadius: 12, cursor: 'pointer', marginBottom: 14 }}>
-            <UploadCloud size={38} color="#52525b" style={{ marginBottom: 10 }} />
-            <span style={{ fontWeight: 600, color: '#a1a1aa' }}>{fileName ? `✓ ${fileName}` : 'Click to upload .csv (RR intervals)'}</span>
-            <input type="file" accept=".csv" onChange={e => handleFile(e.target.files[0])} style={{ display: 'none' }} />
-          </label>
-          {rrData.length > 0 && (
-            <div style={{ background: '#18181b', borderRadius: 10, padding: '10px 14px', marginBottom: 14, border: '1px solid #27272a', fontSize: 12, color: '#52525b', fontFamily: 'monospace' }}>
-              {rrData.length} intervals · {rrData.slice(0, 25).map(v => v.toFixed(0)).join(', ')}{rrData.length > 25 ? ' …' : ''}
-            </div>
-          )}
-          <button onClick={analyzeCSV} disabled={loading || !rrData.length} style={{
-            width: '100%', padding: '13px', borderRadius: 10, border: 'none',
-            background: !rrData.length ? '#27272a' : '#e11d48',
-            color: !rrData.length ? '#52525b' : '#fff',
-            fontSize: 14, fontWeight: 700, cursor: !rrData.length ? 'not-allowed' : 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-          }}>
-            <HeartPulse size={17} />
-            {loading ? 'Analyzing…' : 'Run AI Diagnosis'}
-          </button>
-        </>)}
-
-        {/* ── LIVE MODE ── */}
-        {mode === 'live' && (<>
-          <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 12, padding: 18, marginBottom: 18 }}>
-            <p style={{ margin: '0 0 14px', fontSize: 13, color: '#71717a', lineHeight: 1.6 }}>
-              ESP32 connects to <code style={{ background: '#27272a', padding: '2px 5px', borderRadius: 4, color: '#a1a1aa', fontSize: 12 }}>{WS_URL}</code>
-            </p>
-            <button onClick={wsConnected ? disconnectWS : connectWS} style={{
-              padding: '10px 20px', borderRadius: 8, border: 'none', fontWeight: 700, fontSize: 13,
-              background: wsConnected ? '#27272a' : '#e11d48', color: '#fff',
-              display: 'flex', alignItems: 'center', gap: 7, cursor: 'pointer',
-            }}>
-              {wsConnected ? <><WifiOff size={15}/> Disconnect</> : <><Wifi size={15}/> Connect to ESP32</>}
-            </button>
-          </div>
-          {liveRR.length > 0 && (
-            <div style={{ background: '#18181b', border: '1px solid #27272a', borderRadius: 12, padding: 14, marginBottom: 18 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
-                <span style={{ fontSize: 12, fontWeight: 700, color: '#71717a' }}>LIVE RR STREAM</span>
-                {liveHR && <span style={{ fontSize: 18, fontWeight: 700, color: '#e11d48' }}>{liveHR} <span style={{ fontSize: 11, color: '#71717a', fontWeight: 400 }}>BPM</span></span>}
-              </div>
-              <ResponsiveContainer width="100%" height={110}>
-                <LineChart data={liveRR} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                  <XAxis dataKey="i" hide />
-                  <YAxis domain={['auto','auto']} tick={{ fill: '#52525b', fontSize: 10 }} />
-                  <Tooltip contentStyle={{ background: '#18181b', border: '1px solid #27272a', color: '#f4f4f5', fontSize: 11 }} formatter={v => [`${v.toFixed(0)} ms`, 'RR']} labelFormatter={() => ''} />
-                  <ReferenceLine y={800} stroke="#3f3f46" strokeDasharray="3 3" />
-                  <Line type="monotone" dataKey="rr" stroke="#e11d48" dot={false} strokeWidth={1.6} isAnimationActive={false} />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          )}
-          {wsConnected && !liveRR.length && (
-            <div style={{ textAlign: 'center', color: '#52525b', padding: '40px 0', fontSize: 13 }}>
-              <Radio size={28} style={{ display: 'block', margin: '0 auto 10px', opacity: 0.4 }} />
-              Waiting for RR intervals from ESP32…
-            </div>
-          )}
-        </>)}
-
-        {/* ERROR */}
-        {error && (
-          <div style={{ marginTop: 16, padding: '12px 16px', background: '#450a0a', border: '1px solid #7f1d1d', borderRadius: 10, display: 'flex', gap: 10, color: '#fca5a5', fontSize: 13 }}>
-            <AlertCircle size={15} style={{ marginTop: 1, flexShrink: 0 }} /> {error}
-          </div>
-        )}
-
-        {/* RESULTS PANEL */}
-        {activeResult && activeResult.risk_probability != null && (
-          <div style={{ marginTop: 20, background: '#18181b', border: `1px solid ${resultCfg.border}`, borderRadius: 14, overflow: 'hidden' }}>
-            <div style={{ padding: '16px 20px', background: resultCfg.bg, display: 'flex', alignItems: 'center', gap: 12 }}>
-              {isAfib ? <AlertCircle size={22} color={resultCfg.color}/> : <CheckCircle2 size={22} color={resultCfg.color}/>}
-              <div>
-                <div style={{ fontWeight: 700, fontSize: 16, color: resultCfg.text }}>
-                  {isAfib ? 'High Risk — PAF Detected' : 'Normal — Healthy Sinus Rhythm'}
-                </div>
-                <div style={{ fontSize: 12, color: '#71717a', marginTop: 2 }}>
-                  Threshold: 30% · CatBoost
-                  {selectedDemo && mode === 'demo' && <> · <Badge label={selectedDemo.badge} labelKey={selectedDemo.label_key}/></>}
-                  {mode === 'demo' && currentWinData && <> · Window {currentWin + 1} ({currentWinData.start_sec}s–{currentWinData.end_sec}s)</>}
-                  {mode === 'live' && <span style={{ marginLeft: 8, color: '#e11d48' }}>● LIVE</span>}
-                </div>
-              </div>
-              <div style={{ marginLeft: 'auto' }}>
-                <RiskGauge probability={riskProb} />
-              </div>
-            </div>
-
-            {activeResult.biometrics && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10, padding: 16 }}>
-                {[
-                  { label: 'SDNN',      value: activeResult.biometrics.sdnn.toFixed(1),        unit: 'ms' },
-                  { label: 'RMSSD',     value: activeResult.biometrics.rmssd.toFixed(1),       unit: 'ms' },
-                  { label: 'pNN50',     value: activeResult.biometrics.pnn50.toFixed(1),       unit: '%'  },
-                  { label: 'Mean RR',   value: activeResult.biometrics.mean_rr.toFixed(0),     unit: 'ms' },
-                  { label: 'PAC Count', value: activeResult.biometrics.pac_count,               unit: 'beats', highlight: activeResult.biometrics.pac_count > 3 ? '#ef4444' : null },
-                  { label: 'LF/HF',    value: activeResult.biometrics.lf_hf_ratio.toFixed(2), unit: ''   },
-                  { label: 'SampEn',   value: activeResult.biometrics.sampen.toFixed(3),       unit: ''   },
-                  { label: 'SD1',      value: activeResult.biometrics.sd1.toFixed(1),          unit: 'ms' },
-                ].map(m => <MetricCard key={m.label} {...m} />)}
-              </div>
-            )}
-          </div>
-        )}
+        </div>
       </div>
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}*{box-sizing:border-box}`}</style>
     </div>
   );
 }
